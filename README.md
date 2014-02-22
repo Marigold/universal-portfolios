@@ -9,10 +9,10 @@ In short, the purpose of online portfolio is to *choose portfolio weights in eve
 Several algorithms from the literature are currently implemented, based on the literature and my understanding. Contributions or corrections are more than welcomed.
 
 
-## Installation:
+## Installation
 
 
-####Dependencies:
+####Dependencies
 
 The usual scientific libraries: numpy, scipy, pandas, matplotlib and cvxopt. All of them should be included in [Anaconda](https://store.continuum.io/cshop/anaconda/).
 
@@ -23,4 +23,4 @@ The usual scientific libraries: numpy, scipy, pandas, matplotlib and cvxopt. All
 
 ## Introduction
 
-There is an [IPython notebook](nbviewer) explaining the basic use of a library.
+There is an [IPython notebook](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb) explaining the basic use of the library.
