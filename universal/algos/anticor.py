@@ -71,8 +71,8 @@ class Anticor(Algo):
             def get_weights_c(c, mu, w):
                 code = """
                 int t,i,j;
-                float claim [Nc[0]] [Nc[0]];
-                float transfer [Nc[0]] [Nc[0]];
+                float claim [Nc[1]] [Nc[1]];
+                float transfer [Nc[1]] [Nc[1]];
 
                 for (t=0; t<Nc[0]-1; t++) {
 
@@ -127,4 +127,3 @@ class Anticor(Algo):
 
 if __name__ == '__main__':
     tools.quickrun(Anticor())
-        
