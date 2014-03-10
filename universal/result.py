@@ -119,6 +119,14 @@ class AlgoResult(object):
             return np.inf * np.sign(mu)
 
     @property
+    def growth_rate(self):
+        return self.r_log.mean() * self.freq()
+
+    @property
+    def volatility(self):
+        return np.sqrt(self.freq()) * self.r_log.std()
+
+    @property
     def annualized_return(self):
         return np.exp(self.r_log.mean() * self.freq()) - 1
 
@@ -192,6 +200,17 @@ class AlgoResult(object):
                         legend=False, colormap=plt.get_cmap('jet'))
             plt.ylabel('weights')
         return ax1
+
+    def hedge(self, result=None):
+        """ Hedge results with results of other strategy (subtract weights).
+        :param result: Other result object. Default is UCRP.
+        :return: New AlgoResult object.
+        """
+        if result is None:
+            from algos import CRP
+            result = CRP().run(self.X.cumprod())
+
+        return AlgoResult(self.X, self.B - result.B)
             
  
     def plot_decomposition(self, **kwargs):
