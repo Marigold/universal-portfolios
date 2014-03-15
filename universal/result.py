@@ -224,7 +224,9 @@ class AlgoResult(object):
 class ListResult(list):
     """ List of AlgoResults. """
 
-    def __init__(self, results=[], names=[]):
+    def __init__(self, results=None, names=None):
+        results = results or []
+        names = names or []
         super(ListResult, self).__init__(results)
         self.names = names
 
