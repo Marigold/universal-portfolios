@@ -2,9 +2,24 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import cPickle as pickle
 
 
-class AlgoResult(object):
+class PickleMixin(object):
+
+    def save(self, filename):
+        """ Save object as a pickle """
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f, -1)
+        
+    @classmethod
+    def load(cls, filename):
+        """ Load pickled object. """
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
+
+
+class AlgoResult(PickleMixin):
     """ Results returned by algo's run method. The class containts useful
     metrics such as sharpe ratio, mean return, drawdowns, ... and also
     many visualizations.
@@ -218,15 +233,14 @@ class AlgoResult(object):
         them. Does not take fees into account. """
         ax = self.equity_decomposed.plot(**kwargs)
         return ax
-        
 
 
-class ListResult(list):
+class ListResult(list, PickleMixin):
     """ List of AlgoResults. """
 
     def __init__(self, results=None, names=None):
-        results = results or []
-        names = names or []
+        results = results if results is not None else []
+        names = names if names is not None else []
         super(ListResult, self).__init__(results)
         self.names = names
 
@@ -241,15 +255,21 @@ class ListResult(list):
             eq[name] = result.equity
         return pd.DataFrame(eq)
     
-    def save(self, *args, **kwargs):
+    def save(self, filename, **kwargs):
         # do not save it with fees
-        self.fee = 0.
-        self.to_dataframe().to_pickle(*args, **kwargs)
+        #self.fee = 0.
+        #self.to_dataframe().to_pickle(*args, **kwargs)
+
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f, -1)
         
     @classmethod
-    def load(cls, *args, **kwargs):
-        df = pd.DataFrame.load(*args, **kwargs)
-        return cls([df[c] for c in df], df.columns)
+    def load(cls, filename):
+        # df = pd.read_pickle(*args, **kwargs)
+        # return cls([df[c] for c in df], df.columns)
+
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
     
     @property
     def fee(self):
@@ -300,5 +320,4 @@ class ListResult(list):
             self[0].asset_equity.plot(colormap=plt.get_cmap('jet'), **kwargs)
         
         return ax
-            
         

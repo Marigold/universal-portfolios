@@ -30,7 +30,3 @@ class EG(Algo):
     def step(self, x, last_b):
         b = last_b * np.exp(self.eta * x / sum(x * last_b))
         return b / sum(b)
-
-
-if __name__ == '__main__':
-    tools.quickrun(EG())
