@@ -88,4 +88,5 @@ class CRP(Algo):
 
 
 if __name__ == '__main__':
-    tools.quickrun(CRP())
+    result = tools.quickrun(CRP())
+    print(result.information)

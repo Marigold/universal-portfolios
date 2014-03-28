@@ -128,10 +128,12 @@ class AlgoResult(PickleMixin):
         mu, sd = x.mean(), x.std()
 
         freq = self.freq()
-        if sd != 0:
+        if sd > 1e-8:
             return mu / sd * np.sqrt(freq)
-        else:
+        elif mu > 1e-8:
             return np.inf * np.sign(mu)
+        else:
+            return 0.
 
     @property
     def growth_rate(self):
@@ -202,10 +204,12 @@ class AlgoResult(PickleMixin):
         """ Plot equity of all assets plus our strategy.
         :param weights: Plot weights as a subplot.
         :param assets: Plot asset prices. 
+        :return: List of axes.
         """
         res = ListResult([self], [portfolio_label])
         if not weights:
             ax1 = res.plot(assets=assets, **kwargs)
+            return [ax1]
         else:
             plt.figure(1)
             ax1 = plt.subplot2grid((3,1), (0, 0), rowspan=2)
@@ -214,7 +218,7 @@ class AlgoResult(PickleMixin):
             self.B.plot(ax=ax2, ylim=(min(0., self.B.values.min()), max(1., self.B.values.max())),
                         legend=False, colormap=plt.get_cmap('jet'))
             plt.ylabel('weights')
-        return ax1
+            return [ax1, ax2]
 
     def hedge(self, result=None):
         """ Hedge results with results of other strategy (subtract weights).
