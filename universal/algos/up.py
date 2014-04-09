@@ -75,7 +75,4 @@ class UP(Algo):
     
 
 if __name__ == '__main__':
-    result = tools.quickrun(UP())
-    result.information
-    
-     
+    tools.quickrun(UP(), data)

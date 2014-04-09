@@ -13,6 +13,7 @@ from pandas.io.data import DataReader
 import sys
 import os
 import logging
+import itertools
 
 
 def dataset(name):
@@ -206,3 +207,19 @@ def mc_simplex(d, points):
     a = np.sort(np.random.random((points, d)))
     a = np.hstack([np.zeros((points,1)), a, np.ones((points,1))])
     return np.diff(a)
+
+
+def combinations(S, r):
+    """ Generator of all r-element combinations of stocks from portfolio S. """
+    for ncols in itertools.combinations(S.columns, r):
+        #yield S.iloc[:,ncols]
+        yield S[list(ncols)]
+
+
+def log_progress(i, total, by=1):
+    """ Log progress by pcts. """
+    progress = ((100 * i / total) // by) * by
+    last_progress = ((100 * (i-1) / total) // by) * by
+
+    if progress != last_progress:
+        logging.debug('Progress: {}%...'.format(progress))

@@ -6,6 +6,8 @@ import itertools
 import logging
 import inspect
 from result import AlgoResult, ListResult
+from scipy.misc import comb
+import tools
 
 
 class Algo(object):
@@ -63,7 +65,7 @@ class Algo(object):
         raise NotImplementedError('Subclass must implement this!')
 
 
-    def weights(self, X):
+    def weights(self, X, log_progress=True):
         """ Return weights. Call step method to update portfolio sequentially. Subclass
         this method only at your own risk. """
         # init
@@ -97,21 +99,20 @@ class Algo(object):
                 last_b = np.squeeze(np.array(last_b))
                 
             # show progress by 10 pcts
-            progress = 10 * int(10. * t / len(X))
-            if not hasattr(self, '_progress') or progress != self._progress:
-                self._progress = progress
-                logging.debug('Progress: {}%...'.format(progress))
+            if log_progress:
+                tools.log_progress(t, len(X), by=10)
 
         return B
 
 
-    def run(self, S):
+    def run(self, S, log_progress=True):
         """ Run algorithm and get weights.
         :params S: Absolute stock prices. DataFrame with stocks in columns.
-        :param show_progress: Show computation progress. Works only for algos with
+        :param show_progress: Log computation progress. Works only for algos with
             defined step method.
         """
-        logging.debug('Running {}...'.format(self.__class__.__name__))
+        if log_progress:
+            logging.debug('Running {}...'.format(self.__class__.__name__))
 
         if isinstance(S, ListResult):
             P = S.to_dataframe()
@@ -120,13 +121,17 @@ class Algo(object):
 
         # get weights
         X = self._convert_prices(P, self.PRICE_TYPE, self.REPLACE_MISSING)
-        B = self.weights(X)
+        try:
+            B = self.weights(X, log_progress=log_progress)
+        except TypeError:   # weights are missing log_progress parameter
+            B = self.weights(X)
         
         # cast to dataframe if weights return numpy array
         if not isinstance(B, pd.DataFrame):
             B = pd.DataFrame(B, index=P.index, columns=P.columns)
             
-        logging.debug('{} finished successfully.'.format(self.__class__.__name__))
+        if log_progress:
+            logging.debug('{} finished successfully.'.format(self.__class__.__name__))
 
         # if we are aggregating strategies, combine weights from strategies
         # and use original assets
@@ -135,6 +140,40 @@ class Algo(object):
             return AlgoResult(S[0].X, B)
         else:
             return AlgoResult(self._convert_prices(S, 'ratio'), B)
+
+
+    def run_subsets(self, S, r, generator=False):
+        """ Run algorithm on all stock subsets of length r. Note that number of such tests can be
+        very large. 
+        :param S: stock prices
+        :param r: number of stocks in a subset
+        :param generator: yield results
+        """
+        def subset_generator():
+            total_subsets = comb(S.shape[1], r)
+
+            for i, S_sub in enumerate(tools.combinations(S, r)):
+                # run algorithm on given subset
+                result = self.run(S_sub, log_progress=False)
+                name = ', '.join(S_sub.columns.astype(str))
+
+                # log progress by 1 pcts
+                tools.log_progress(i, total_subsets, by=1)
+
+                yield result, name
+            raise StopIteration
+
+        if generator:
+            return subset_generator()
+        else:
+            results = []
+            names = []
+            for result, name in subset_generator():
+                results.append(result)
+                names.append(name)
+            return ListResult(results, names)
+
+        
     
     
     @classmethod
@@ -214,4 +253,3 @@ class Algo(object):
             names.append(name)
 
         return ListResult(results, names)
-
