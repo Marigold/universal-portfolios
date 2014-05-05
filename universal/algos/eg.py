@@ -30,3 +30,8 @@ class EG(Algo):
     def step(self, x, last_b):
         b = last_b * np.exp(self.eta * x / sum(x * last_b))
         return b / sum(b)
+
+
+if __name__ == '__main__':
+    data = tools.dataset('nyse_o')
+    tools.quickrun(EG(eta=0.5), data)

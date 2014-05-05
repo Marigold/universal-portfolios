@@ -72,7 +72,8 @@ class UP(Algo):
         ax.set_xlabel('Leverage')
         ax.set_ylabel('Total Wealth')
         return ax
-    
+
 
 if __name__ == '__main__':
+    data = tools.dataset('sp500')
     tools.quickrun(UP(), data)

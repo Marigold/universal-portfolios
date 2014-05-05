@@ -47,7 +47,7 @@ def load_ticker(ticker, start=datetime(2000,1,1), end=None):
     return DataReader(ticker,  "yahoo", start=start, end=None)
     
     
-def quickrun(algo, data=None):
+def quickrun(algo, data=None, **kwargs):
     """ Run algorithm and print its running time and some statistics. """
     if data is None:
         data = random_portfolio(n=1000, k=3, mu=0.0001)
@@ -56,7 +56,7 @@ def quickrun(algo, data=None):
     logging.debug('Time: {:.2f}s'.format(time() - t))
 
     print(result.summary())
-    result.plot()
+    result.plot(**kwargs)
     plt.show()
 
     return result
