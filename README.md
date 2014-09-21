@@ -8,6 +8,8 @@ In short, the purpose of online portfolio is to *choose portfolio weights in eve
 
 Several algorithms from the literature are currently implemented, based on the literature and my understanding. Contributions or corrections are more than welcomed.
 
+If you are more into R or just looking for a good resource about Universal Portfolios, check out blog and package [logopt](http://optimallog.blogspot.cz/) by Marc Delvaux.
+
 
 ## Installation
 
