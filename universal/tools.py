@@ -33,20 +33,20 @@ def profile(algo, data=None, to_profile=[]):
         tools.profile(Anticor(window=30, c_version=False), to_profile=[Anticor.weights])
     """
     from line_profiler import LineProfiler
-    
+
     if data is None:
         data = random_portfolio(n=1000, k=10, mu=0.)
 
-    to_profile = to_profile or [algo.step]    
+    to_profile = to_profile or [algo.step]
     profile = LineProfiler(*to_profile)
     profile.runcall(algo.run, data)
     profile.print_stats()
-    
-    
+
+
 def load_ticker(ticker, start=datetime(2000,1,1), end=None):
     return DataReader(ticker,  "yahoo", start=start, end=None)
-    
-    
+
+
 def quickrun(algo, data=None, **kwargs):
     """ Run algorithm and print its running time and some statistics. """
     if data is None:
@@ -77,53 +77,53 @@ def random_portfolio(n, k, mu=0., sd=0.01, corr=None, dt=1., nan_pct=0.):
     corr = corr if corr is not None else np.eye(k)
     sd = sd * np.ones(k)
     mu = mu * np.ones(k)
-    
+
     # drift
     nu = mu - sd**2 / 2.
 
     # do a Cholesky factorization on the correlation matrix
     R = np.linalg.cholesky(corr).T
-    
+
     # generate uncorrelated random sequence
     x = np.matrix(np.random.normal(size=(n - 1,k)))
-    
+
     # correlate the sequences
     ep = x * R
-    
+
     # multivariate brownian
     W = nu * dt + ep * np.diag(sd) * np.sqrt(dt)
-    
+
     # generate potential path
     S = np.vstack([np.ones((1, k)), np.cumprod(np.exp(W), 0)])
-    
+
     # add nan values
     if nan_pct > 0:
         r = S * 0 + np.random.random(S.shape)
         S[r < nan_pct] = np.nan
-    
-    return pd.DataFrame(S)
+
+    return pd.DataFrame(S, columns=['S{}'.format(i) for i in range(S.shape[1])])
 
 
 def bcrp_weights(X):
-    """ Find best constant rebalanced portfolio. 
+    """ Find best constant rebalanced portfolio.
     :param X: Prices in ratios.
     """
     x_0 = np.ones(X.shape[1]) / float(X.shape[1])
-    fun = lambda b: -np.prod(np.dot(X, b)) 
+    fun = lambda b: -np.prod(np.dot(X, b))
     cons = ({'type': 'eq', 'fun': lambda b:  sum(b) - 1.},)
     res = optimize.minimize(fun, x_0, bounds=[(0.,1.)]*len(x_0), constraints=cons, method='slsqp')
     if not res.success:
         warn('BCRP not found', RuntimeWarning)
-        
+
     return res.x
-    
-    
+
+
 def rolling_cov_pairwise(df, *args, **kwargs):
     d = {}
     for c in df.columns:
         d[c] = pd.rolling_cov(df[c], df, *args, **kwargs)
     p = pd.Panel(d)
-    return p.transpose(1,0,2)    
+    return p.transpose(1,0,2)
 
 
 def rolling_corr(x, y, **kwargs):
@@ -156,7 +156,7 @@ def rolling_corr(x, y, **kwargs):
 def simplex_proj(y):
     """ Projection of y onto simplex. """
     m = len(y)
-    bget = False    
+    bget = False
 
     s = sorted(y, reverse=True)
     tmpsum = 0.
@@ -167,7 +167,7 @@ def simplex_proj(y):
         if tmax >= s[ii+1]:
             bget = True
             break
-    
+
     if not bget:
         tmax = (tmpsum + s[m-1] -1)/m
 
@@ -181,28 +181,28 @@ def __mesh(d, k):
     else:
         for i in range(k+1):
             for s in __mesh(d-1, k-i):
-                yield [i] + s 
+                yield [i] + s
 
 
 def simplex_mesh(d, points):
     """ Create uniform grid on simplex. In 2-dim case the algorithm just selects
     equally spaced points on interval [0,1]. In 3-dim, it selects vertices of 3-simplex
-    triangulation. 
+    triangulation.
     :param d: Number of dimensions.
-    :param points: Total number of points (approximately). 
+    :param points: Total number of points (approximately).
     """
     # find k for __mesh such that points is number of points
     # total number of points is combination(d + k - 1, k)
-    fun = lambda k: - np.log(d+k) - betaln(k+1,d) - np.log(points)  
+    fun = lambda k: - np.log(d+k) - betaln(k+1,d) - np.log(points)
     k = int(optimize.newton(fun, x0=1))
     k = max(k,1)
     return np.array(sorted(__mesh(d,k))) / float(k)
 
 
 def mc_simplex(d, points):
-    """ Sample random points from a simplex with dimension d. 
+    """ Sample random points from a simplex with dimension d.
     :param d: Number of dimensions.
-    :param points: Total number of points. 
+    :param points: Total number of points.
     """
     a = np.sort(np.random.random((points, d)))
     a = np.hstack([np.zeros((points,1)), a, np.ones((points,1))])

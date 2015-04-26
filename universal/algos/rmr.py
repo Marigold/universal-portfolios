@@ -5,12 +5,19 @@ import numpy as np
 from olmar import OLMAR
 import pandas as pd
 
-norm = lambda x: np.sqrt((x**2).sum(axis=1))
+
+def norm(x):
+    if isinstance(x, pd.Series):
+        axis = 0
+    else:
+        axis = 1
+    return np.sqrt((x**2).sum(axis=axis))
+
 
 class RMR(OLMAR):
-    """ Robust Median Reversion. Strategy exploiting mean-reversion by robust 
+    """ Robust Median Reversion. Strategy exploiting mean-reversion by robust
     L1-median estimator. Practically the same as OLMAR.
-    
+
     Reference:
         Dingjiang Huang, Junlong Zhou, Bin Li, Steven C.H. Hoi, Shuigeng Zhou
         Robust Median Reversion Strategy for On-Line Portfolio Selection, 2013.
@@ -19,9 +26,9 @@ class RMR(OLMAR):
 
     PRICE_TYPE = 'raw'
     REPLACE_MISSING = True
-    
+
     def __init__(self, window=5, eps=10., tau=0.001):
-        """ 
+        """
         :param window: Lookback window.
         :param eps: Constraint on return for new weights on last price (average of prices).
             x * w >= eps for new weights w.
@@ -30,8 +37,7 @@ class RMR(OLMAR):
         """
         super(RMR, self).__init__(window, eps)
         self.tau = tau
-        
-        
+
     def predict(self, x, history):
         """ find L1 median to historical prices """
         y = history.mean()
@@ -41,7 +47,7 @@ class RMR(OLMAR):
             d = norm(history - y)
             y = history.div(d, axis=0).sum() / (1. / d).sum()
         return y / x
-    
+
 
 if __name__ == '__main__':
     tools.quickrun(RMR())
