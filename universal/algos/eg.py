@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
-from universal.algo import Algo
-import universal.tools as tools
+from ..algo import Algo
+from .. import tools
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 
 class EG(Algo):
-    """ Exponentiated Gradient (EG) algorithm by Helmbold et al. 
+    """ Exponentiated Gradient (EG) algorithm by Helmbold et al.
 
     Reference:
-        Helmbold, David P., et al. 
-        "On‐Line Portfolio Selection Using Multiplicative Updates." 
+        Helmbold, David P., et al.
+        "On‐Line Portfolio Selection Using Multiplicative Updates."
         Mathematical Finance 8.4 (1998): 325-347.
     """
 

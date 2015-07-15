@@ -1,0 +1,2 @@
+include requirements.txt LICENSE README.md
+include data/*.pkl

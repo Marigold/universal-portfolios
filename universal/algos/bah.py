@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
-from universal.algo import Algo
-import universal.tools as tools
+from ..algo import Algo
+from .. import tools
 import numpy as np
 
+
 class BAH(Algo):
-    """ Bay and hold strategy. Buy equal amount of each stock in the beginning and hold them 
+    """ Bay and hold strategy. Buy equal amount of each stock in the beginning and hold them
     forever.  """
 
     PRICE_TYPE = 'raw'
@@ -19,7 +19,7 @@ class BAH(Algo):
     def weights(self, S):
         """ Weights function optimized for performance. """
         b = np.ones(S.shape[1]) / S.shape[1] if self.b is None else self.b
-        
+
         # weights are proportional to price times initial weights
         w = S * b
 
@@ -31,10 +31,7 @@ class BAH(Algo):
         w.ix[0] = 1./S.shape[1]
 
         return w
-            
+
 
 if __name__ == '__main__':
     tools.quickrun(BAH())
-    
-    
-    

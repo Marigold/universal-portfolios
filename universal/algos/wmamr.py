@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
-
 from universal.algos.pamr import PAMR
 import numpy as np
 import pandas as pd
-import universal.tools as tools
+from .. import tools
 
 
 class WMAMR(PAMR):
@@ -18,26 +16,26 @@ class WMAMR(PAMR):
     """
 
     PRICE_TYPE = 'ratio'
-    
+
     def __init__(self, window=5, **kwargs):
         """
         :param w: Windows length for moving average.
         :param kwargs: Additional arguments for PAMR.
         """
         super(WMAMR, self).__init__(**kwargs)
-        
+
         if window < 1:
             raise ValueError('window parameter must be >=1')
         self.window = window
-        
-            
+
+
     def step(self, x, last_b, history):
         xx = history[-self.window:].mean()
         # calculate return prediction
         b = self.update(last_b, xx, self.eps, self.C)
         return b
-    
-    
+
+
 # use case
 if __name__ == '__main__':
     tools.quickrun(WMAMR())

@@ -1,6 +1,6 @@
 import pytest
 from universal import algos
-import universal.tools as tools
+from .. import tools
 
 
 EPS = 1e-10

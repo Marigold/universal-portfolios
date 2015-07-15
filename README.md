@@ -10,7 +10,7 @@ Several algorithms from the literature are currently implemented, based on the a
 
 ## Resources
 
-There is an [IPython notebook](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb) explaining the basic use of the library. Paul Perry followed up on this and made a [comparison of all algorithms](http://nbviewer.ipython.org/github/paulperry/quant/blob/master/OLPS_Comparison.ipynb) on more recent ETF datasets. There's also an interesting discussion about this on [Quantopian](https://www.quantopian.com/posts/comparing-olps-algorithms-olmar-up-et-al-dot-on-etfs#553a704e7c9031e3c70003a9).
+There is an [IPython notebook](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb) explaining the basic use of the library. Paul Perry followed up on this and made a [comparison of all algorithms](http://nbviewer.ipython.org/github/paulperry/quant/blob/master/OLPS_Comparison.ipynb) on more recent ETF datasets. Also see the most recent [notebook about modern portfolio theory](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/modern-portfolio-theory.ipynb). There's also an interesting discussion about this on [Quantopian](https://www.quantopian.com/posts/comparing-olps-algorithms-olmar-up-et-al-dot-on-etfs#553a704e7c9031e3c70003a9).
 
 The original authors of some of the algorithms recently published their own implementation on github - [On-Line Portfolio Selection Toolbox](https://github.com/OLPS/OLPS) in MATLAB.
 
@@ -29,3 +29,5 @@ The usual scientific libraries: numpy, scipy, pandas, matplotlib and cvxopt. All
 ```
 pip install universal-portfolios
 ```
+
+`universal-portfolios` works under both python 2 and 3.

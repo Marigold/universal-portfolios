@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-from universal.algo import Algo
-import universal.tools as tools
+from ..algo import Algo
+from .. import tools
 import numpy as np
-from olmar import OLMAR
+from .olmar import OLMAR
 import pandas as pd
 
 

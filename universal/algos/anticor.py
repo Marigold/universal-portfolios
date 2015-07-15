@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-from universal.algo import Algo
-import universal.tools as tools
+from ..algo import Algo
+from .. import tools
 import numpy as np
-from scipy import weave
+import warnings
 
 
 class Anticor(Algo):
@@ -36,6 +35,13 @@ class Anticor(Algo):
         weights = 1. / m * np.ones(port.shape)
 
         CORR, EX = tools.rolling_corr(port, port.shift(window), window=window)
+
+        if self.c_version:
+            try:
+                from scipy import weave
+            except ImportError:
+                warnings.warn('scipy.weave is not available in python3, falling back to python version')
+                self.c_version = False
 
         if self.c_version is False:
             for t in range(n - 1):
