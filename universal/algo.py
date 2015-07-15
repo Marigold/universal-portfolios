@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 import sys
 import numpy as np
 import pandas as pd
 import itertools
 import logging
 import inspect
-from result import AlgoResult, ListResult
+from .result import AlgoResult, ListResult
 from scipy.misc import comb
-import tools
+from . import tools
 
 
 class Algo(object):
@@ -277,6 +276,7 @@ class Algo(object):
         return ListResult(results, names)
 
 
-def _run_algo_params((S, cls, params)):
+def _run_algo_params(tuple_args):
+    S, cls, params = tuple_args
     logging.debug('Run combination of parameters: {}'.format(params))
     return cls(**params).run(S)

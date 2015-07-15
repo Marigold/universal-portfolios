@@ -1,6 +1,6 @@
-from universal.algo import Algo
+from ..algo import Algo
 from universal.algos import CRP
-import universal.tools as tools
+from .. import tools
 import numpy as np
 
 

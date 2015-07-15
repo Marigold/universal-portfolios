@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
-from universal.algo import Algo
+from ..algo import Algo
 from universal.algos import CRP
-import universal.tools as tools
+from .. import tools
 import numpy as np
 
 
@@ -29,4 +28,3 @@ class BCRP(CRP):
 
 if __name__ == '__main__':
     tools.quickrun(BCRP())
-

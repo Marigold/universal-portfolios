@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-from universal.algos import CRP
-import universal.tools as tools
+from ..algos import CRP
+from .. import tools
 import numpy as np
 
 

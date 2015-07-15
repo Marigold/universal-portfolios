@@ -451,7 +451,8 @@ def bootstrap_history(S, drop_fraction=0.1, random_state=None):
     return R.cumprod()
 
 
-def _bootstrap_mp((algo, bS)):
+def _bootstrap_mp(algo_bS):
+    algo, bS = algo_bS
     return algo.run(bS)
 
 

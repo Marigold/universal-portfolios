@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-from universal.algo import Algo
+from ..algo import Algo
 import numpy as np
 import pandas as pd
-import universal.tools as tools
+from .. import tools
 import logging
 from cvxopt import solvers, matrix
 solvers.options['show_progress'] = False

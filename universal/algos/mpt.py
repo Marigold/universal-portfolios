@@ -1,4 +1,4 @@
-from universal.algo import Algo
+from ..algo import Algo
 import numpy as np
 import pandas as pd
 from sklearn import covariance
@@ -6,7 +6,7 @@ from sklearn.base import BaseEstimator
 from scipy import optimize
 from cvxopt import solvers, matrix
 import logging
-from universal import tools
+from .. import tools
 solvers.options['show_progress'] = False
 
 
