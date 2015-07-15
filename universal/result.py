@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import cPickle as pickle
+from universal import tools
 
 
 class PickleMixin(object):
@@ -11,7 +12,7 @@ class PickleMixin(object):
         """ Save object as a pickle """
         with open(filename, 'wb') as f:
             pickle.dump(self, f, -1)
-        
+
     @classmethod
     def load(cls, filename):
         """ Load pickled object. """
@@ -24,7 +25,7 @@ class AlgoResult(PickleMixin):
     metrics such as sharpe ratio, mean return, drawdowns, ... and also
     many visualizations.
     You can specify transactions by setting AlgoResult.fee. Fee is
-    expressed in a percentages as a one-round fee.  
+    expressed in a percentages as a one-round fee.
     """
 
     def __init__(self, X, B):
@@ -32,44 +33,69 @@ class AlgoResult(PickleMixin):
         :param X: Price relatives.
         :param B: Weights.
         """
-        self.X = X
-        self.B = B
-
-        # yearly risk free rate
+        # set initial values
+        self._fee = 0.
+        self._B = B
         self.rf_rate = 0.
-        
-        # set initial fees -> calculate self.r and self.r_log
-        self.fee = 0.
-        
+        self._X = X
+
+        # update logarithms, fees, etc.
+        self._recalculate()
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, _X):
+        self._X = _X
+        self._recalculate()
+
+    @property
+    def B(self):
+        return self._B
+
+    @B.setter
+    def B(self, _B):
+        self._B = _B
+        self._recalculate()
+
     @property
     def fee(self):
         return self._fee
-        
+
     @fee.setter
     def fee(self, value):
         """ Set transaction costs. Fees can be either float or Series
         of floats for individual assets with proper indices. """
-        # set fee
+        if isinstance(value, dict):
+            value = pd.Series(value)
+        if isinstance(value, pd.Series):
+            missing = set(self.X.columns) - set(value.index)
+            assert len(missing) == 0, 'Missing fees for {}'.format(missing)
+
         self._fee = value
-        
+        self._recalculate()
+
+    def _recalculate(self):
         # calculate return for individual stocks
         r = (self.X - 1) * self.B
         self.asset_r = r + 1
-        self.r =  r.sum(axis=1) + 1
-        
+        self.r = r.sum(axis=1) + 1
+
         # stock went bankrupt
         self.r[self.r < 0] = 0.
 
         # add fees
-        if value > 0:
+        if not isinstance(self._fee, float) or self._fee != 0:
             fees = (self.B.shift(-1).mul(self.r, axis=0) - self.B * self.X).abs()
             fees.iloc[0] = self.B.ix[0]
             fees.iloc[-1] = 0.
             fees *= self._fee
-            
+
             self.asset_r -= fees
             self.r -= fees.sum(axis=1)
-        
+
         self.r_log = np.log(self.r)
 
     @property
@@ -79,12 +105,12 @@ class AlgoResult(PickleMixin):
     @property
     def equity(self):
         return self.r.cumprod()
-    
+
     @property
     def equity_decomposed(self):
         """ Return equity decomposed to individual assets. """
         return self.asset_r.cumprod()
-    
+
     @property
     def asset_equity(self):
         return self.X.cumprod()
@@ -96,28 +122,16 @@ class AlgoResult(PickleMixin):
     @property
     def profit_factor(self):
         x = self.r_log
-        up = x[x>0].sum()
-        down = -x[x<0].sum()
+        up = x[x > 0].sum()
+        down = -x[x < 0].sum()
         return up / down if down != 0 else np.inf
 
     @property
     def sharpe(self):
         """ Compute annualized sharpe ratio from log returns. If data does
         not contain datetime index, assume daily frequency with 252 trading days a year.
-
-        TODO: calculate real sharpe ratio (using price relatives), see
-            http://www.treasury.govt.nz/publications/research-policy/wp/2003/03-28/twp03-28.pdf
         """
-        x = self.r_log
-        mu, sd = x.mean(), x.std()
-
-        freq = self.freq()
-        rf = np.log(1 + self.rf_rate) / freq
-
-        if sd != 0:
-            return (mu - rf) / sd * np.sqrt(freq)
-        else:
-            return np.inf * np.sign(mu - rf**(1./freq))
+        return tools.sharpe(self.r_log, rf_rate=self.rf_rate, freq=self.freq())
 
     @property
     def information(self):
@@ -148,6 +162,10 @@ class AlgoResult(PickleMixin):
         return np.exp(self.r_log.mean() * self.freq()) - 1
 
     @property
+    def annualized_volatility(self):
+        return np.exp(self.r_log).std() * np.sqrt(self.freq())
+
+    @property
     def drawdown_period(self):
         ''' Returns longest drawdown perid. Stagnation is a drawdown too. '''
         x = self.equity
@@ -160,7 +178,13 @@ class AlgoResult(PickleMixin):
                 period[i] = 0
             else:
                 period[i] = period[i-1] + 1
-        return max(period)
+        return max(period) * 252. / self.freq()
+
+    @property
+    def max_drawdown(self):
+        ''' Returns highest drawdown in percentage. '''
+        x = self.equity
+        return max(1. - x / x.cummax())
 
     @property
     def winning_pct(self):
@@ -173,13 +197,7 @@ class AlgoResult(PickleMixin):
         """ Number of data items per year. If data does not contain
         datetime index, assume daily frequency with 252 trading days a year."""
         x = x or self.r
-
-        if isinstance(x.index, pd.DatetimeIndex):
-            days = (x.index[-1] - x.index[0]).days
-            return len(x) / float(days) * 365.
-        else:
-            return 252.
-
+        return tools.freq(x.index)
 
     def summary(self, name=None):
         return """Summary{}:
@@ -187,7 +205,9 @@ class AlgoResult(PickleMixin):
     Sharpe ratio: {:.2f}
     Information ratio (wrt UCRP): {:.2f}
     Annualized return: {:.2f}%
-    Longest drawdown: {} days
+    Annualized volatility: {:.2f}%
+    Longest drawdown: {:.0f} days
+    Max drawdown: {:.2f}%
     Winning days: {:.1f}%
         """.format(
             '' if name is None else ' for ' + name,
@@ -195,15 +215,16 @@ class AlgoResult(PickleMixin):
             self.sharpe,
             self.information,
             100 * self.annualized_return,
+            100 * self.annualized_volatility,
             self.drawdown_period,
+            100 * self.max_drawdown,
             100 * self.winning_pct
             )
 
-        
     def plot(self, weights=True, assets=True, portfolio_label='PORTFOLIO', **kwargs):
         """ Plot equity of all assets plus our strategy.
         :param weights: Plot weights as a subplot.
-        :param assets: Plot asset prices. 
+        :param assets: Plot asset prices.
         :return: List of axes.
         """
         res = ListResult([self], [portfolio_label])
@@ -212,11 +233,22 @@ class AlgoResult(PickleMixin):
             return [ax1]
         else:
             plt.figure(1)
-            ax1 = plt.subplot2grid((3,1), (0, 0), rowspan=2)
+            ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
             res.plot(assets=assets, ax=ax1, **kwargs)
-            ax2 = plt.subplot2grid((3,1), (2, 0), sharex=ax1)
-            self.B.plot(ax=ax2, ylim=(min(0., self.B.values.min()), max(1., self.B.values.max())),
-                        legend=False, colormap=plt.get_cmap('jet'))
+            ax2 = plt.subplot2grid((3, 1), (2, 0), sharex=ax1)
+
+            # plot weights as lines
+            if self.B.values.min() < -0.01:
+                self.B.plot(ax=ax2, ylim=(min(0., self.B.values.min()), max(1., self.B.values.max())),
+                            legend=False, colormap=plt.get_cmap('jet'))
+            else:
+                # fix rounding errors near zero
+                if self.B.values.min() < 0:
+                    B = self.B - self.B.values.min()
+                else:
+                    B = self.B
+                B.plot(ax=ax2, ylim=(0., max(1., B.values.max())),
+                       legend=False, colormap=plt.get_cmap('jet'), kind='area', stacked=True)
             plt.ylabel('weights')
             return [ax1, ax2]
 
@@ -230,13 +262,17 @@ class AlgoResult(PickleMixin):
             result = CRP().run(self.X.cumprod())
 
         return AlgoResult(self.X, self.B - result.B)
-            
- 
+
     def plot_decomposition(self, **kwargs):
         """ Decompose equity into components of individual assets and plot
         them. Does not take fees into account. """
         ax = self.equity_decomposed.plot(**kwargs)
         return ax
+
+    @property
+    def importance(self):
+        ws = self.weights.sum()
+        return ws / sum(ws)
 
 
 class ListResult(list, PickleMixin):
@@ -258,7 +294,7 @@ class ListResult(list, PickleMixin):
         for result, name in zip(self, self.names):
             eq[name] = result.equity
         return pd.DataFrame(eq)
-    
+
     def save(self, filename, **kwargs):
         # do not save it with fees
         #self.fee = 0.
@@ -266,7 +302,7 @@ class ListResult(list, PickleMixin):
 
         with open(filename, 'wb') as f:
             pickle.dump(self, f, -1)
-        
+
     @classmethod
     def load(cls, filename):
         # df = pd.read_pickle(*args, **kwargs)
@@ -274,35 +310,35 @@ class ListResult(list, PickleMixin):
 
         with open(filename, 'rb') as f:
             return pickle.load(f)
-    
+
     @property
     def fee(self):
         return {name: result.fee for result, name in zip(self, self.names)}
-        
+
     @fee.setter
     def fee(self, value):
         for result in self:
             result.fee = value
-    
+
     def summary(self):
         return '\n'.join([result.summary(name) for result, name in zip(self, self.names)])
-            
-    
+
     def plot(self, ucrp=False, bah=False, assets=False, **kwargs):
         """ Plot strategy equity.
         :param ucrp: Add uniform CRP as a benchmark.
         :param bah: Add Buy-And-Hold portfolio as a benchmark.
         :param assets: Add asset prices.
-        :param kwargs: Additional arguments for pd.DataFrame.plot 
+        :param kwargs: Additional arguments for pd.DataFrame.plot
         """
         # NOTE: order of plotting is important because of coloring
         # plot portfolio
         d = self.to_dataframe()
-        ax = d.plot(linewidth=2., **kwargs)
+        portfolio = d.copy()
+        ax = portfolio.plot(linewidth=3., legend=False, **kwargs)
         kwargs['ax'] = ax
-        
+
         ax.set_ylabel('Total wealth')
-        
+
         # plot uniform constant rebalanced portfolio
         if ucrp:
             from algos import CRP
@@ -310,7 +346,7 @@ class ListResult(list, PickleMixin):
             crp_algo.fee = self[0].fee
             d['UCRP'] = crp_algo.equity
             d[['UCRP']].plot(**kwargs)
-            
+
         # add bah
         if bah:
             from algos import BAH
@@ -318,10 +354,13 @@ class ListResult(list, PickleMixin):
             bah_algo.fee = self[0].fee
             d['BAH'] = bah_algo.equity
             d[['BAH']].plot(**kwargs)
-            
+
         # add individual assets
         if assets:
             self[0].asset_equity.plot(colormap=plt.get_cmap('jet'), **kwargs)
-        
+
+        # plot portfolio again to highlight it
+        kwargs['color'] = 'blue'
+        portfolio.plot(linewidth=3., **kwargs)
+
         return ax
-        

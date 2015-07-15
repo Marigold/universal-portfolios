@@ -14,3 +14,7 @@ from kelly import Kelly
 from up import UP
 from eg import EG
 from bnn import BNN
+from dynamic_crp import DynamicCRP
+from best_so_far import BestSoFar
+from best_markowitz import BestMarkowitz
+from mpt import MPT

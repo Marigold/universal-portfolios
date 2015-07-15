@@ -20,38 +20,36 @@ class Algo(object):
     Upper case letters stand for matrix and lower case for vectors (such as
     B and b for weights).
     """
-    
+
     # if true, replace missing values by last values
     REPLACE_MISSING = False
-    
+
     # type of prices going into weights or step function
-    #    ratio:  pt / pt-1 
+    #    ratio:  pt / pt-1
     #    log:    log(pt / pt-1)
     #    raw:    pt
     PRICE_TYPE = 'ratio'
 
-
-    def __init__(self, min_history=None):
+    def __init__(self, min_history=None, frequency=1):
         """ Subclass to define algo specific parameters here.
         :param min_history: If not None, use initial weights for first min_window days. Use
             this if the algo needs some history for proper parameter estimation.
+        :param frequency: algorithm should trade every `frequency` periods
         """
         self.min_history = min_history or 0
-        
+        self.frequency = frequency
 
     def init_weights(self, m):
-        """ Set initial weights. 
+        """ Set initial weights.
         :param m: Number of assets.
         """
         return np.zeros(m)
-
 
     def init_step(self, X):
         """ Called before step method. Use to initialize persistent variables.
         :param X: Entire stock returns history.
         """
         pass
-
 
     def step(self, x, last_b, history):
         """ Calculate new portfolio weights. If history parameter is omited, step
@@ -64,6 +62,10 @@ class Algo(object):
         """
         raise NotImplementedError('Subclass must implement this!')
 
+    def _use_history_step(self):
+        """ Use history parameter in step method? """
+        step_args = inspect.getargspec(self.step)[0]
+        return len(step_args) >= 4
 
     def weights(self, X, log_progress=True):
         """ Return weights. Call step method to update portfolio sequentially. Subclass
@@ -71,39 +73,41 @@ class Algo(object):
         # init
         B = X.copy() * 0.
         last_b = self.init_weights(X.shape[1])
-        
-        # use history parameter in step method?
-        step_args = inspect.getargspec(self.step)[0]
-        use_history = len(step_args) >= 4
+
+        # use history in step method?
+        use_history = self._use_history_step()
 
         # run algo
         self.init_step(X)
         for t, (_, x) in enumerate(X.iterrows()):
             # save weights
             B.ix[t] = last_b
-            
+
             # keep initial weights for min_history
             if t < self.min_history:
                 continue
-            
+
+            # trade each `frequency` periods
+            if (t - self.min_history) % self.frequency != 0:
+                continue
+
             # predict for t+1
             if use_history:
                 history = X.iloc[:t+1]
                 last_b = self.step(x, last_b, history)
             else:
                 last_b = self.step(x, last_b)
-                
+
             # convert last_b to suitable format if needed
             if type(last_b) == np.matrix:
                 # remove dimension
                 last_b = np.squeeze(np.array(last_b))
-                
+
             # show progress by 10 pcts
             if log_progress:
                 tools.log_progress(t, len(X), by=10)
 
         return B
-
 
     def run(self, S, log_progress=True):
         """ Run algorithm and get weights.
@@ -125,11 +129,11 @@ class Algo(object):
             B = self.weights(X, log_progress=log_progress)
         except TypeError:   # weights are missing log_progress parameter
             B = self.weights(X)
-        
+
         # cast to dataframe if weights return numpy array
         if not isinstance(B, pd.DataFrame):
             B = pd.DataFrame(B, index=P.index, columns=P.columns)
-            
+
         if log_progress:
             logging.debug('{} finished successfully.'.format(self.__class__.__name__))
 
@@ -141,10 +145,22 @@ class Algo(object):
         else:
             return AlgoResult(self._convert_prices(S, 'ratio'), B)
 
+    def next_weights(self, S, last_b):
+        """ Calculate weights for next day. """
+        # use history in step method?
+        use_history = self._use_history_step()
+        history = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
+        x = history.iloc[-1]
+
+        if use_history:
+            b = self.step(x, last_b, history)
+        else:
+            b = self.step(x, last_b)
+        return pd.Series(b, index=S.columns)
 
     def run_subsets(self, S, r, generator=False):
         """ Run algorithm on all stock subsets of length r. Note that number of such tests can be
-        very large. 
+        very large.
         :param S: stock prices
         :param r: number of stocks in a subset
         :param generator: yield results
@@ -173,14 +189,14 @@ class Algo(object):
                 names.append(name)
             return ListResult(results, names)
 
-        
-    
-    
+
+
+
     @classmethod
     def _convert_prices(self, S, method, replace_missing=False):
-        """ Convert prices to format suitable for weight or step function. 
+        """ Convert prices to format suitable for weight or step function.
         Available price types are:
-            ratio:  pt / pt_1 
+            ratio:  pt / pt_1
             log:    log(pt / pt_1)
             raw:    pt (normalized to start with 1)
         """
@@ -191,26 +207,25 @@ class Algo(object):
                 init_val = s.ix[s.first_valid_index()]
                 r[name] = s / init_val
             X = pd.DataFrame(r)
-            
+
             if replace_missing:
                 X.ix[0] = 1.
                 X = X.fillna(method='ffill')
-                
+
             return X
-            
+
         elif method in ('ratio', 'log'):
             # be careful about NaN values
             X = S / S.shift(1).fillna(method='ffill')
             X.ix[0] = 1.
-            
+
             if replace_missing:
                 X = X.fillna(1.)
-            
-            return np.log(X) if method == 'log' else X 
+
+            return np.log(X) if method == 'log' else X
 
         else:
             raise ValueError('invalid price conversion method')
-        
 
     @classmethod
     def run_combination(cls, S, **kwargs):
@@ -229,27 +244,39 @@ class Algo(object):
 
         :param S: Stock prices.
         :param kwargs: Additional arguments to algo.
+        :param n_jobs: Use multiprocessing (-1 = use all cores). Use all cores by default.
         """
         if isinstance(S, ListResult):
             S = S.to_dataframe()
 
-        # extract simple parameters
-        simple_params = {k: kwargs.pop(k) for k,v in kwargs.items()
-                                          if not isinstance(v, list)}
+        n_jobs = kwargs.pop('n_jobs', -1)
 
-        results = []        # list of AlgoResult
+        # extract simple parameters
+        simple_params = {k: kwargs.pop(k) for k, v in kwargs.items()
+                         if not isinstance(v, list)}
+
+        # iterate over all combinations
         names = []
+        params_to_try = []
         for seq in itertools.product(*kwargs.values()):
             params = dict(zip(kwargs.keys(), seq))
 
             # run algo
             all_params = dict(params.items() + simple_params.items())
-            logging.debug('Run combination of parameters: {}'.format(params))
-            result = cls(**all_params).run(S)
-            results.append(result)
+            params_to_try.append(all_params)
 
-            # create name in format param:value
+            # create name with format param:value
             name = ','.join([str(k) + '=' + str(v) for k, v in params.items()])
             names.append(name)
 
+        # try all combinations in parallel
+        with tools.mp_pool(n_jobs) as pool:
+            results = pool.map(_run_algo_params, [(S, cls, all_params) for all_params in params_to_try])
+        results = map(_run_algo_params, [(S, cls, all_params) for all_params in params_to_try])
+
         return ListResult(results, names)
+
+
+def _run_algo_params((S, cls, params)):
+    logging.debug('Run combination of parameters: {}'.format(params))
+    return cls(**params).run(S)

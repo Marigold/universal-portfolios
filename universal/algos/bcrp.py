@@ -14,12 +14,19 @@ class BCRP(CRP):
         http://www-isl.stanford.edu/~cover/papers/paper93.pdf
     """
 
+    def __init__(self, **kwargs):
+        self.opt_weights_kwargs = kwargs
+
     def weights(self, X):
         """ Find weights which maximize return on X in hindsight! """
-        self.b = tools.bcrp_weights(X)
+        # update frequency
+        self.opt_weights_kwargs['freq'] = tools.freq(X.index)
+
+        self.b = tools.opt_weights(X, **self.opt_weights_kwargs)
+
         return super(BCRP, self).weights(X)
 
 
 if __name__ == '__main__':
     tools.quickrun(BCRP())
-    
+
