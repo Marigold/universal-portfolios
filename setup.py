@@ -6,7 +6,7 @@ install_reqs = parse_requirements('requirements.txt', session=False)
 reqs = [str(ir.req) for ir in install_reqs]
 
 setup(name='universal-portfolios',
-      version='0.2.0',
+      version='0.3.0',
       description='Collection of algorithms for online portfolio selection',
       url='https://github.com/Marigold/universal-portfolios',
       download_url='https://github.com/Marigold/universal-portfolios/archive/master.zip',

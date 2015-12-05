@@ -5,8 +5,10 @@ from sklearn import covariance
 from sklearn.base import BaseEstimator
 from scipy import optimize
 from cvxopt import solvers, matrix
+from six import string_types
 import logging
 from .. import tools
+from .estimators import *
 solvers.options['show_progress'] = False
 
 
@@ -16,37 +18,32 @@ class MPT(Algo):
 
     PRICE_TYPE = 'log'
 
-    def __init__(self, window=float('inf'), mu_estimator=None, cov_estimator=None,
-                 min_history=None, max_leverage=1., method='mpt', q=0.01, gamma=0., allow_cash=False, **kwargs):
+    def __init__(self, mu_estimator=None, cov_estimator=None, cov_window=None,
+                 min_history=None, max_leverage=1., method='mpt', q=0.01, gamma=0., allow_cash=False,
+                 optimizer_options=None, **kwargs):
         """
-        :param window: Window for calculating mean and variance. Use float('inf') for entire history.
+        :param window: Window for calculating mean and variance. Use None for entire history.
         :param mu_estimator: TODO
         :param cov_estimator: TODO
-        :param min_history: Use zero weights for first min_periods.
+        :param min_history: Use zero weights for first min_periods. Default is 1 year
         :param max_leverage: Max leverage to use.
         :param method: optimization objective - can be "mpt", "sharpe" and "variance"
         :param q: depends on method, e.g. for "mpt" it is risk aversion parameter (higher means lower aversion to risk)
         :param gamma: Penalize changing weights (can be number or Series with individual weights such as fees)
         :param allow_cash: Allow holding cash (weights doesn't have to sum to 1)
         """
-        if np.isinf(window):
-            window = int(1e+8)
-            min_history = min_history or 50
-        else:
-            min_history = min_history or window
-
         super(MPT, self).__init__(min_history=min_history, **kwargs)
-        self.window = window
         self.max_leverage = max_leverage
         self.method = method
         self.q = q
         self.gamma = gamma
         self.allow_cash = allow_cash
+        self.optimizer_options = optimizer_options or {}
 
         if cov_estimator is None:
             cov_estimator = 'empirical'
 
-        if isinstance(cov_estimator, basestring):
+        if isinstance(cov_estimator, string_types):
             if cov_estimator == 'empirical':
                 # use pandas covariance in init_step
                 cov_estimator = covariance.EmpiricalCovariance()
@@ -56,21 +53,23 @@ class MPT(Algo):
                 cov_estimator = covariance.GraphLasso()
             elif cov_estimator == 'oas':
                 cov_estimator = covariance.OAS()
+            elif cov_estimator == 'single-index':
+                cov_estimator = SingleIndexCovariance()
             else:
                 raise NotImplemented('Unknown covariance estimator {}'.format(cov_estimator))
 
         # handle sklearn models
         if isinstance(cov_estimator, BaseEstimator):
-            cov_estimator = CovarianceEstimator(cov_estimator)
+            cov_estimator = CovarianceEstimator(cov_estimator, window=cov_window)
 
         if mu_estimator is None:
-            mu_estimator = MuEstimator()
+            mu_estimator = SharpeEstimator()
 
-        if isinstance(mu_estimator, basestring):
+        if isinstance(mu_estimator, string_types):
             if mu_estimator == 'historical':
-                mu_estimator = HistoricalEstimator(window)
+                mu_estimator = HistoricalEstimator(window=cov_window)
             elif mu_estimator == 'sharpe':
-                mu_estimator = MuEstimator()
+                mu_estimator = SharpeEstimator()
             else:
                 raise NotImplemented('Unknown mu estimator {}'.format(mu_estimator))
 
@@ -78,6 +77,10 @@ class MPT(Algo):
         self.mu_estimator = mu_estimator
 
     def init_step(self, X):
+        # set min history to 1 year
+        if not self.min_history:
+            self.min_history = tools.freq(X.index)
+
         # replace covariance estimator with empirical covariance and precompute it
         if isinstance(self.cov_estimator, covariance.EmpiricalCovariance):
             class EmpiricalCov(object):
@@ -99,20 +102,45 @@ class MPT(Algo):
                     self.covariance_ = sigma.values
                     return self
 
-            self.cov_estimator = CovarianceEstimator(EmpiricalCov(X, self.window, self.min_history))
+            self.cov_estimator = CovarianceEstimator(EmpiricalCov(X, self.cov_estimator.window, self.min_history))
 
     def estimate_mu_sigma(self, S):
-        history = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
-        X = history.iloc[-self.window:]
+        X = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
 
         sigma = self.cov_estimator.fit(X)
         mu = self.mu_estimator.fit(X, sigma)
 
         return mu, sigma
 
-    def step(self, x, last_b, history):
+    def portfolio_gradient(self, last_b, mu, sigma, q=None, decompose=False):
+        """ Calculate gradient for given objective function. Can be used to determine which stocks
+        should be added / removed from portfolio.
+        """
+        q = q or self.q
+        if self.method == 'sharpe':
+            w = np.matrix(last_b)
+            mu = np.matrix(mu)
+            sigma = np.matrix(sigma)
+
+            p_vol = np.sqrt(w * sigma * w.T + q)
+            p_mu = w * mu.T
+
+            grad_sharpe = mu.T / p_vol
+            grad_vol = -sigma * w.T * p_mu / p_vol**3
+
+            grad_sharpe = pd.Series(np.array(grad_sharpe).ravel(), index=last_b.index)
+            grad_vol = pd.Series(np.array(grad_vol).ravel(), index=last_b.index)
+
+            if decompose:
+                return grad_sharpe, grad_vol
+            else:
+                return grad_sharpe + grad_vol
+        else:
+            raise NotImplemented('Method {} not yet implemented'.format(self.method))
+
+    def step(self, x, last_b, history, **kwargs):
         # get sigma and mu estimates
-        X = history.iloc[-self.window:]
+        X = history
 
         # remove assets with NaN values
         # cov_est = self.cov_estimator.cov_est
@@ -145,28 +173,28 @@ class MPT(Algo):
 
         # find optimal portfolio
         last_b = pd.Series(last_b, index=x.index, name=x.name)
-        b = self.optimize(mu, sigma, q=self.q, gamma=gamma, max_leverage=self.max_leverage, last_b=last_b)
+        b = self.optimize(mu, sigma, q=self.q, gamma=gamma, max_leverage=self.max_leverage, last_b=last_b, **kwargs)
 
         return pd.Series(b, index=X.columns).reindex(history.columns, fill_value=0.)
 
-    def optimize(self, mu, sigma, q, gamma, max_leverage, last_b):
+    def optimize(self, mu, sigma, q, gamma, max_leverage, last_b, **kwargs):
         if self.method == 'mpt':
-            return self._optimize_mpt(mu, sigma, q, gamma, max_leverage, last_b)
+            return self._optimize_mpt(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
         elif self.method == 'sharpe':
-            return self._optimize_sharpe(mu, sigma, q, gamma, max_leverage, last_b)
+            return self._optimize_sharpe(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
         elif self.method == 'variance':
-            return self._optimize_variance(mu, sigma, q, gamma, max_leverage, last_b)
+            return self._optimize_variance(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
         else:
             raise Exception('Unknown method {}'.format(self.method))
 
-    def _optimize_sharpe(self, mu, sigma, q, gamma, max_leverage, last_b):
+    def _optimize_sharpe(self, mu, sigma, q, gamma, max_leverage, last_b, allow_sell=True):
         """ Maximize sharpe ratio b.T * mu / sqrt(b.T * sigma * b + q) """
         mu = np.matrix(mu)
         sigma = np.matrix(sigma)
 
         def maximize(bb):
             if callable(gamma):
-                fee_penalization = gamma(bb, last_b)
+                fee_penalization = gamma(pd.Series(bb, index=last_b.index), last_b)
             else:
                 fee_penalization = sum(gamma * abs(bb - last_b))
             bb = np.matrix(bb)
@@ -177,9 +205,25 @@ class MPT(Algo):
         else:
             cons = ({'type': 'eq', 'fun': lambda b: max_leverage - sum(b)},)
 
+        if allow_sell:
+            bounds = [(0., max_leverage)]*len(last_b)
+        else:
+            bounds = [(0, max_leverage) if sym == 'CASH' else (w, max_leverage) for sym, w in last_b.iteritems()]
+
         x0 = last_b
-        res = optimize.minimize(maximize, x0, bounds=[(0., max_leverage)]*len(x0),
-                                constraints=cons, method='slsqp')
+        MAX_TRIES = 3
+
+        for _ in range(MAX_TRIES):
+            res = optimize.minimize(maximize, x0, bounds=bounds,
+                                    constraints=cons, method='slsqp', options=self.optimizer_options)
+
+            # it is possible that slsqp gives out-of-bounds error, try it again with different x0
+            if np.any(res.x < -0.01) or np.any(res.x > max_leverage + 0.01):
+                x0 = np.random.random(len(res.x))
+            else:
+                break
+        else:
+            raise Exception()
 
         return res.x
 
@@ -294,10 +338,15 @@ class MPT(Algo):
 class CovarianceEstimator(object):
     """ Estimator which accepts sklearn objects. """
 
-    def __init__(self, cov_est):
+    def __init__(self, cov_est, window):
         self.cov_est = cov_est
+        self.window = window
 
     def fit(self, X):
+        # only use last window
+        if self.window:
+            X = X.iloc[-self.window:]
+
         # remove zero-variance elements
         zero_variance = X.std() == 0
         Y = X.iloc[:, ~zero_variance.values]
@@ -324,49 +373,3 @@ class CovarianceEstimator(object):
         cov *= tools.freq(X.index)
 
         return cov
-
-
-class MuEstimator(object):
-
-    def fit(self, X, sigma):
-        # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
-        mu = 0.5 * pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
-        return mu
-
-
-class MuVarianceEstimator(object):
-
-    def fit(self, X, sigma):
-        # assume that all assets have yearly sharpe ratio 1 and deduce return from volatility
-        mu = np.matrix(sigma).dot(np.ones(sigma.shape[0]))
-        return mu
-
-
-class HistoricalEstimator(object):
-
-    def __init__(self, window):
-        self.window = window
-
-    def fit(self, X, sigma):
-        # assume that all assets have yearly sharpe ratio 1 and deduce return from volatility
-        mu = X.iloc[-self.window:].mean() * tools.freq(X.index)
-        return mu
-
-
-class MixedMuEstimator(object):
-
-    def __init__(self, window, alpha=0.5):
-        self.mu_estimator = MuEstimator()
-        self.historical_estimator = HistoricalEstimator(window)
-        self.alpha = alpha
-
-    def fit(self, X, sigma):
-        prior_mu = self.mu_estimator.fit(X, sigma)
-        historical_mu = self.historical_estimator.fit(X, sigma)
-        return self.alpha * prior_mu + (1-self.alpha) * historical_mu
-
-# use case
-if __name__ == '__main__':
-    data = tools.random_portfolio(n=100, k=3, mu=0.0001)
-    data.iloc[:20, 0] = np.nan
-    tools.quickrun(MPT(min_history=10, window=100, method='variance', cov_estimator='oas'), data=data)

@@ -30,13 +30,4 @@ class DynamicCRP(Algo):
         hist = history.iloc[-self.n:] if self.n else history
 
         ws = tools.opt_weights(hist, **self.opt_weights_kwargs)
-
-        # add weights to importances
-        self._importances += ws
-
         return ws
-
-    @property
-    def importances(self):
-        return self._importances / sum(self._importances)
-

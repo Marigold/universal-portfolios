@@ -13,6 +13,7 @@ import os
 import logging
 import itertools
 import multiprocessing
+from pandas.stats.api import ols
 import contextlib
 from cvxopt import solvers, matrix
 solvers.options['show_progress'] = False
@@ -126,7 +127,7 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
     :freq: frequency for sharpe (default 252 for daily data)
     :no_cash: if True, we can't keep cash (that is sum of weights == max_leverage)
     """
-    assert metric in ('return', 'sharpe')
+    assert metric in ('return', 'sharpe', 'drawdown')
 
     x_0 = max_leverage * np.ones(X.shape[1]) / float(X.shape[1])
     if metric == 'return':
@@ -134,6 +135,13 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
     elif metric == 'sharpe':
         objective = lambda b: -sharpe(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
                                       rf_rate=rf_rate, alpha=alpha, freq=freq, sd_factor=sd_factor)
+    elif metric == 'drawdown':
+        def objective(b):
+            R = np.dot(X - 1, b) + 1
+            L = np.cumprod(R)
+            dd = max(1 - L / np.maximum.accumulate(L))
+            annual_ret = np.mean(R) ** freq - 1
+            return -annual_ret / (dd + alpha)
 
     if no_cash:
         cons = ({'type': 'eq', 'fun': lambda b: max_leverage - sum(b)},)
@@ -337,13 +345,15 @@ def log_progress(i, total, by=1):
         logging.debug('Progress: {}%...'.format(progress))
 
 
-def sharpe(r_log, rf_rate=0., alpha=0., freq=252, sd_factor=1.):
+def sharpe(r_log, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
     """ Compute annualized sharpe ratio from log returns. If data does
         not contain datetime index, assume daily frequency with 252 trading days a year
 
         TODO: calculate real sharpe ratio (using price relatives), see
             http://www.treasury.govt.nz/publications/research-policy/wp/2003/03-28/twp03-28.pdf
     """
+    freq = freq or _freq(r_log.index)
+
     mu, sd = r_log.mean(), r_log.std()
 
     # annualize return and sd
@@ -353,21 +363,44 @@ def sharpe(r_log, rf_rate=0., alpha=0., freq=252, sd_factor=1.):
     # risk-free rate
     rf = np.log(1 + rf_rate)
 
-    if sd != 0:
-        return (mu - rf) / (sd + alpha)**sd_factor
+    sh = (mu - rf) / (sd + alpha)**sd_factor
+
+    if isinstance(sh, float):
+        if sh == np.inf:
+            return np.inf * np.sign(mu - rf**(1./freq))
     else:
-        return np.inf * np.sign(mu - rf**(1./freq))
+        sh[sh == np.inf] *= np.sign(mu - rf**(1./freq))
+    return sh
+
+
+def sharpe_std(X):
+    """ Calculate sharpe ratio std. Confidence interval is taken from
+    https://cran.r-project.org/web/packages/SharpeR/vignettes/SharpeRatio.pdf
+    :param X: log returns
+    """
+    sh = sharpe(X)
+    n = X.notnull().sum()
+    f = freq(X.index)
+    return np.sqrt((1. + sh**2/2.) * f / n)
 
 
 def freq(ix):
     """ Number of data items per year. If data does not contain
     datetime index, assume daily frequency with 252 trading days a year."""
     assert isinstance(ix, pd.Index), 'freq method only accepts pd.Index object'
+
+    # sort if data is not monotonic
+    if not ix.is_monotonic:
+        ix = ix.order()
+
     if isinstance(ix, pd.DatetimeIndex):
         days = (ix[-1] - ix[0]).days
         return len(ix) / float(days) * 365.
     else:
         return 252.
+
+# add alias to allow use of freq keyword in functions
+_freq = freq
 
 
 def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
@@ -418,6 +451,32 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
     # fill missing values backward
     if backfill:
         S = S.fillna(method='bfill')
+
+    return S
+
+
+def fill_regressed_data(S):
+    """ Fill missing returns by linear combinations of assets without missing returns. """
+    S = S.copy()
+    R = np.log(S).diff()
+    R.iloc[0] = 0
+
+    X = R.dropna(1)
+
+    for col in set(S.columns) - set(X.columns):
+        R[col].iloc[0] = np.nan
+        y = R[col]
+
+        # fit regression
+        res = ols(y=y, x=X, intercept=True)
+        pred = res.predict(x=X[y.isnull()])
+
+        # get absolute prices
+        pred = pred.cumsum()
+        pred += np.log(S[col].dropna().iloc[0]) - pred.iloc[-1]
+
+        # fill missing data
+        S[col] = S[col].fillna(np.exp(pred))
 
     return S
 

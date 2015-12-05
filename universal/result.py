@@ -238,7 +238,7 @@ class AlgoResult(PickleMixin):
 
             # plot weights as lines
             if self.B.values.min() < -0.01:
-                self.B.plot(ax=ax2, ylim=(min(0., self.B.values.min()), max(1., self.B.values.max())),
+                self.B.plot(ax=ax2, ylim=(min(0., self.B.values.min()), max(1., self.B.sum(1).max())),
                             legend=False, colormap=plt.get_cmap('jet'))
             else:
                 # fix rounding errors near zero
@@ -246,7 +246,7 @@ class AlgoResult(PickleMixin):
                     B = self.B - self.B.values.min()
                 else:
                     B = self.B
-                B.plot(ax=ax2, ylim=(0., max(1., B.values.max())),
+                B.plot(ax=ax2, ylim=(0., max(1., B.sum(1).max())),
                        legend=False, colormap=plt.get_cmap('jet'), kind='area', stacked=True)
             plt.ylabel('weights')
             return [ax1, ax2]
@@ -271,7 +271,7 @@ class AlgoResult(PickleMixin):
     @property
     def importance(self):
         ws = self.weights.sum()
-        return ws / sum(ws)
+        return (ws / sum(ws)).order(ascending=False)
 
 
 class ListResult(list, PickleMixin):
