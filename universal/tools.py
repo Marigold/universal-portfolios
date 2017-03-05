@@ -7,7 +7,7 @@ from pandas.stats.moments import rolling_corr
 import matplotlib.pyplot as plt
 from time import time
 from datetime import datetime
-from pandas.io.data import DataReader
+from pandas_datareader.data import DataReader
 import sys
 import os
 import logging
@@ -418,7 +418,7 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
     corr = X.corr()
 
     # go over stocks from those with longest history
-    ordered_cols = (S.isnull()).sum().order().index
+    ordered_cols = (S.isnull()).sum().sort_values().index
     for i, col in enumerate(ordered_cols):
         if i > 0 and S[col].isnull().any():
             # find maximum correlation
@@ -493,7 +493,7 @@ def short_assets(S):
     return X.cumprod()
 
 
-def bootstrap_history(S, drop_fraction=0.1, random_state=None):
+def bootstrap_history(S, drop_fraction=0.1, size=None, random_state=None):
     """ Remove fraction of days and reconstruct time series from remaining days. Useful for stress-testing
     strategies. """
     # work with returns
@@ -502,7 +502,11 @@ def bootstrap_history(S, drop_fraction=0.1, random_state=None):
     # drop days randomly
     if random_state is not None:
         np.random.seed(random_state)
-    ix = np.random.choice(R.index, size=int(len(R) * (1-drop_fraction)), replace=False)
+
+    if size is None:
+        size = int(len(R) * (1 - drop_fraction))
+
+    ix = np.random.choice(R.index, size=size, replace=False)
     R = R.ix[sorted(ix)]
 
     # reconstruct series
@@ -535,3 +539,18 @@ def cov_to_corr(sigma):
     """ Convert covariance matrix to correlation matrix. """
     return sigma / np.sqrt(np.matrix(np.diag(sigma)).T.dot(np.matrix(np.diag(sigma))))
 
+
+def get_cash(S, interest_rate=0.025):
+    rf_rate = (1 + interest_rate) ** (1. / freq(S.index))
+    cash = pd.Series(rf_rate, index=S.index)
+    cash = cash.cumprod()
+    cash = cash / cash[-1]
+    return cash
+
+
+def tradable_etfs():
+    return [
+        'TLT', 'SPY', 'RSP', 'GLD', 'EDV', 'MDY', 'QQQ', 'IWM', 'EFA', 'IYR', 'ASHR', 'SSO', 'TMF', 'UPRO', 'EDC', 'TQQQ', 'XIV',
+        'ZIV', 'EEM', 'UGLD', 'FAS', 'UDOW', 'UMDD', 'URTY', 'TNA', 'ERX', 'BIB', 'UYG', 'RING', 'LABU', 'XLE', 'XLF', 'IBB',
+        'FXI', 'XBI', 'XSD', 'GOOGL', 'AAPL', 'VNQ', 'DRN', 'O', 'IEF', 'GBTC', 'KBWY', 'KBWR', 'DPST', 'YINN', 'FHK', 'XOP',
+        'GREK', 'SIL', 'JPNL', 'KRE', 'IAT', 'SOXL', 'RETL', 'VIXM', 'QABA', 'KBE', 'USDU', 'UUP', 'TYD']

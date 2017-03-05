@@ -8,13 +8,54 @@ from numpy.linalg import inv
 from scipy.linalg import sqrtm
 
 
+EXPENSES = {
+    'TMF': 0.0095,
+    'DPST': 0.0095,
+    'ASHR': 0.0065,
+    'TQQQ': 0.0095,
+    'UGLD': 0.0135,
+    'ERX': 0.01,
+    'RING': 0.0039,
+    'LABU': 0.0097,
+    'YINN': 0.0104,
+    'SOXL': 0.0097,
+    'RETL': 0.0096,
+    'TYD': 0.0097,
+    'UDOW': 0.0095,
+    'GBTC': 0.02,
+    'FAS': 0.0096,
+}
+
+
 class SharpeEstimator(object):
 
-    GLOBAL_SHARPE = 0.5
+    def __init__(self, global_sharpe=0.4, override_sharpe=None, rfr=0.):
+        """
+        :param rfr: risk-free rate
+        """
+        self.override_sharpe = override_sharpe or {}
+        self.global_sharpe = global_sharpe
+        self.rfr = rfr
 
     def fit(self, X, sigma):
+        """
+        formula for mean is:
+            sh * vol + rf - expenses
+        """
+        est_sh = pd.Series(self.global_sharpe, index=sigma.index)
+        for k, v in self.override_sharpe.items():
+            if k in est_sh:
+                est_sh[k] = v
+
         # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
-        mu = self.GLOBAL_SHARPE * pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
+        vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
+        expenses = pd.Series([EXPENSES.get(c, 0.) for c in sigma.index], index=sigma.index)
+        mu = est_sh * vol + self.rfr - expenses
+
+        # adjust CASH
+        if 'CASH' in X.columns:
+            mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
+
         return mu
 
 
@@ -225,11 +266,13 @@ class SingleIndexCovariance(BaseEstimator):
 
 class HistoricalSharpeEstimator(object):
 
-    PRIOR_SHARPE = 0.3
-
-    def __init__(self, window=None, alpha=1e10, override_sharpe=None):
+    def __init__(self, window=None, alpha=1e10, override_sharpe=None, prior_sharpe=0.3, max_sharpe=100.,
+                 max_mu=100.):
         self.window = window
         self.alpha = alpha
+        self.prior_sharpe = prior_sharpe
+        self.max_sharpe = max_sharpe
+        self.max_mu = max_mu
         self.override_sharpe = override_sharpe or {}
 
     def fit(self, X, sigma):
@@ -242,7 +285,8 @@ class HistoricalSharpeEstimator(object):
 
         # combine prior sharpe ratio with observations
         alpha = self.alpha
-        est_sh = (mu_sh / var_sh + self.PRIOR_SHARPE * alpha) / (1. / var_sh + alpha)
+        est_sh = (mu_sh / var_sh + self.prior_sharpe * alpha) / (1. / var_sh + alpha)
+        est_sh = np.minimum(est_sh, self.max_sharpe)
 
         # override sharpe ratios
         for k, v in self.override_sharpe.items():
@@ -250,5 +294,6 @@ class HistoricalSharpeEstimator(object):
                 est_sh[k] = v
 
         mu = est_sh * pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
+        mu = np.minimum(mu, self.max_mu)
         # print(est_sh[{'XIV', 'ZIV', 'UGAZ'} & set(est_sh.index)].to_dict())
         return mu

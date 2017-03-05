@@ -16,7 +16,7 @@ class MPT(Algo):
     """ Modern portfolio theory approach. See https://en.wikipedia.org/wiki/Modern_portfolio_theory.
     """
 
-    PRICE_TYPE = 'log'
+    PRICE_TYPE = 'ratio'
 
     def __init__(self, mu_estimator=None, cov_estimator=None, cov_window=None,
                  min_history=None, max_leverage=1., method='mpt', q=0.01, gamma=0., allow_cash=False,
@@ -112,19 +112,27 @@ class MPT(Algo):
 
         return mu, sigma
 
+    def portfolio_mu(self, last_b, mu):
+        return (last_b * mu).sum()
+
+    def portfolio_vol(self, last_b, sigma):
+        w = np.matrix(last_b)
+        sigma = np.matrix(sigma.reindex(index=last_b.index, columns=last_b.index))
+        return np.sqrt((w * sigma * w.T)[0, 0])
+
     def portfolio_gradient(self, last_b, mu, sigma, q=None, decompose=False):
         """ Calculate gradient for given objective function. Can be used to determine which stocks
         should be added / removed from portfolio.
         """
         q = q or self.q
+        w = np.matrix(last_b)
+        mu = np.matrix(mu)
+        sigma = np.matrix(sigma)
+
+        p_vol = np.sqrt(w * sigma * w.T + q)
+        p_mu = w * mu.T
+
         if self.method == 'sharpe':
-            w = np.matrix(last_b)
-            mu = np.matrix(mu)
-            sigma = np.matrix(sigma)
-
-            p_vol = np.sqrt(w * sigma * w.T + q)
-            p_mu = w * mu.T
-
             grad_sharpe = mu.T / p_vol
             grad_vol = -sigma * w.T * p_mu / p_vol**3
 
@@ -135,6 +143,15 @@ class MPT(Algo):
                 return grad_sharpe, grad_vol
             else:
                 return grad_sharpe + grad_vol
+        elif self.method == 'mpt':
+            grad_mu = pd.Series(np.array(mu).ravel(), index=last_b.index)
+            grad_sigma = pd.Series(np.array(sigma * w.T).ravel(), index=last_b.index)
+            grad_vol = pd.Series(np.array(-sigma * w.T / p_vol).ravel(), index=last_b.index)
+
+            if decompose:
+                return grad_mu, grad_vol
+            else:
+                return q * grad_mu - 2 * grad_sigma
         else:
             raise NotImplemented('Method {} not yet implemented'.format(self.method))
 
@@ -149,7 +166,7 @@ class MPT(Algo):
         # else:
         #     na_assets = X.isnull().any().values
 
-        na_assets = (X.notnull().sum() < self.min_history).values
+        na_assets = (X.notnull().sum() <= self.min_history).values
 
         X = X.iloc[:, ~na_assets]
         x = x[~na_assets]
@@ -227,13 +244,16 @@ class MPT(Algo):
 
         return res.x
 
-    def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b):
+    def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b, allow_sell=True):
         """ Minimize b.T * sigma * b - q * b.T * mu """
+        has_cash = 'CASH' in mu.index
+        if has_cash:
+            cash_ix = mu.index.get_loc('CASH')
         sigma = np.matrix(sigma)
         mu = np.matrix(mu).T
 
         # regularization parameter for singular cases
-        ALPHA = 0.001
+        ALPHA = 0.000001
 
         def maximize(mu, sigma, q):
             n = len(last_b)
@@ -243,17 +263,42 @@ class MPT(Algo):
             G = matrix(-np.eye(n))
             h = matrix(np.zeros(n))
 
+            # CASH have different constraints
+            if has_cash:
+                h[cash_ix] = max_leverage - 1.
+
+            # additional constraints on selling
+            if not allow_sell:
+                cG = matrix(-np.eye(n))
+                if has_cash:
+                    cG[cash_ix, cash_ix] = 0.
+
+                ch = -matrix(last_b)
+                if has_cash:
+                    ch[cash_ix] = ALPHA    # causing numerical problems
+
+                G = matrix(np.r_[G, cG])
+                h = matrix(np.r_[h, ch])
+
             if max_leverage is None or max_leverage == float('inf'):
                 sol = solvers.qp(P, q, G, h)
             else:
-                if self.allow_cash:
-                    G = matrix(np.r_[G, matrix(np.ones(n)).T])
-                    h = matrix(np.r_[h, matrix([self.max_leverage])])
-                    sol = solvers.qp(P, q, G, h, initvals=last_b)
-                else:
-                    A = matrix(np.ones(n)).T
-                    b = matrix(np.array([max_leverage]))
-                    sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
+                A = matrix(np.ones(n)).T
+                b = matrix(np.array([1.]))
+
+                # min_eigval = np.linalg.eig(P)[0].min()
+                # assert min_eigval > 0, 'Covariance matrix is not convex!'
+
+                sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
+
+                # if self.allow_cash:
+                #     G = matrix(np.r_[G, matrix(np.ones(n)).T])
+                #     h = matrix(np.r_[h, matrix([self.max_leverage])])
+                #     sol = solvers.qp(P, q, G, h, initvals=last_b)
+                # else:
+                #     A = matrix(np.ones(n)).T
+                #     b = matrix(np.array([max_leverage]))
+                #     sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
 
             if sol['status'] != 'optimal':
                 logging.warning("Solution not found for {}, using last weights".format(last_b.name))
@@ -280,10 +325,12 @@ class MPT(Algo):
 
             return np.squeeze(sol['x']) + np.array(last_b)
 
-        try:
-            b = maximize(mu, sigma, q)
-        except ValueError:
-            b = last_b
+        b = maximize(mu, sigma, q)
+        # try:
+        #     b = maximize(mu, sigma, q)
+        # except ValueError as e:
+        #     raise e
+        #     b = last_b
 
         # second optimization for fees
         if (gamma != 0).any() and (b != last_b).any():
@@ -357,17 +404,21 @@ class CovarianceEstimator(object):
             cov = pd.DataFrame(self.cov_est.covariance_, index=Y.columns, columns=Y.columns)
         else:
             # estimation for matrix without NaN values - should be larger than min_history
-            cov = self.cov_est.fit(Y.dropna()).covariance_
+            cov = self.cov_est.fit(Y).covariance_
             cov = pd.DataFrame(cov, index=Y.columns, columns=Y.columns)
 
+            # NOTE: nonsense - we wouldn't get positive-semidefinite matrix
             # improve estimation for those with full history
-            Y = Y.dropna(1, how='any')
-            full_cov = self.cov_est.fit(Y).covariance_
-            full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
-            cov.update(full_cov)
+            # Y = Y.dropna(1, how='any')
+            # full_cov = self.cov_est.fit(Y).covariance_
+            # full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
+            # cov.update(full_cov)
 
         # put back zero covariance
         cov = cov.reindex(X.columns).reindex(columns=X.columns).fillna(0.)
+
+        # turn on?
+        # assert np.linalg.eig(cov)[0].min() > 0
 
         # annualize covariance
         cov *= tools.freq(X.index)

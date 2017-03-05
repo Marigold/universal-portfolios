@@ -115,20 +115,8 @@ class CORN(Algo):
             return b
 
     def optimal_weights(self, X):
-        X = np.mat(X)
-
-        n,m = X.shape
-        P = 2 * matrix(X.T * X)
-        q = -3 * matrix(np.ones((1,n)) * X).T
-
-        G = matrix(-np.eye(m))
-        h = matrix(np.zeros(m))
-        A = matrix(np.ones(m)).T
-        b = matrix(1.)
-
-        sol = solvers.qp(P, q, G, h, A, b)
-        return np.squeeze(sol['x'])
-
+        freq = tools.freq(X.index)
+        return tools.opt_weights(X, freq=freq)
 
 
 # use case

@@ -220,7 +220,7 @@ class AlgoResult(PickleMixin):
             100 * self.winning_pct
             )
 
-    def plot(self, weights=True, assets=True, portfolio_label='PORTFOLIO', **kwargs):
+    def plot(self, weights=True, assets=True, portfolio_label='PORTFOLIO', show_only_important=True, **kwargs):
         """ Plot equity of all assets plus our strategy.
         :param weights: Plot weights as a subplot.
         :param assets: Plot asset prices.
@@ -231,23 +231,31 @@ class AlgoResult(PickleMixin):
             ax1 = res.plot(assets=assets, **kwargs)
             return [ax1]
         else:
+            if show_only_important:
+                ix = self.B.abs().sum().sort_values(ascending=False).index[:20]
+                B = self.B[ix].copy()
+                assets = B.columns if assets else False
+                B['others'] = self.B.drop(ix, 1).sum(1)
+            else:
+                B = self.B.copy()
+
             plt.figure(1)
             ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
             res.plot(assets=assets, ax=ax1, **kwargs)
             ax2 = plt.subplot2grid((3, 1), (2, 0), sharex=ax1)
 
             # plot weights as lines
-            if self.B.values.min() < -0.01:
-                self.B.plot(ax=ax2, ylim=(min(0., self.B.values.min()), max(1., self.B.sum(1).max())),
-                            legend=False, colormap=plt.get_cmap('jet'))
+            if B.drop(['CASH'], 1, errors='ignore').values.min() < -0.01:
+                B.plot(ax=ax2, ylim=(min(0., B.values.min()), max(1., B.values.max())),
+                       legend=False, colormap=plt.get_cmap('jet'))
             else:
                 # fix rounding errors near zero
-                if self.B.values.min() < 0:
-                    B = self.B - self.B.values.min()
+                if B.values.min() < 0:
+                    pB = B - B.values.min()
                 else:
-                    B = self.B
-                B.plot(ax=ax2, ylim=(0., max(1., B.sum(1).max())),
-                       legend=False, colormap=plt.get_cmap('jet'), kind='area', stacked=True)
+                    pB = B
+                pB.plot(ax=ax2, ylim=(0., max(1., pB.sum(1).max())),
+                        legend=False, colormap=plt.get_cmap('jet'), kind='area', stacked=True)
             plt.ylabel('weights')
             return [ax1, ax2]
 
@@ -272,6 +280,11 @@ class AlgoResult(PickleMixin):
     def importance(self):
         ws = self.weights.sum()
         return (ws / sum(ws)).order(ascending=False)
+
+    def plot_total_weights(self):
+        _, axes = plt.subplots(ncols=2)
+        self.B.iloc[-1].sort_values(ascending=False).iloc[:15].plot(kind='bar', title='Latest weights', ax=axes[1])
+        self.B.sum().sort_values(ascending=False).iloc[:15].plot(kind='bar', title='Total weights', ax=axes[0])
 
 
 class ListResult(list, PickleMixin):
@@ -355,8 +368,13 @@ class ListResult(list, PickleMixin):
             d[['BAH']].plot(**kwargs)
 
         # add individual assets
-        if assets:
-            self[0].asset_equity.plot(colormap=plt.get_cmap('jet'), **kwargs)
+        if isinstance(assets, bool):
+            if assets:
+                assets = self[0].asset_equity.columns
+            else:
+                assets = []
+        if list(assets):
+            self[0].asset_equity[assets].plot(colormap=plt.get_cmap('jet'), **kwargs)
 
         # plot portfolio again to highlight it
         kwargs['color'] = 'blue'

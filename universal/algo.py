@@ -241,7 +241,8 @@ class Algo(object):
         elif method in ('ratio', 'log'):
             # be careful about NaN values
             X = S / S.shift(1).fillna(method='ffill')
-            X.ix[0] = 1.
+            for name, s in X.iteritems():
+                X[name].iloc[s.index.get_loc(s.first_valid_index()) - 1] = 1.
 
             if replace_missing:
                 X = X.fillna(1.)
