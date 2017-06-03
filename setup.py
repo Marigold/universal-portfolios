@@ -6,7 +6,7 @@ install_reqs = parse_requirements('requirements.txt', session=False)
 reqs = [str(ir.req) for ir in install_reqs]
 
 setup(name='universal-portfolios',
-      version='0.3.0',
+      version='0.3.2',
       description='Collection of algorithms for online portfolio selection',
       url='https://github.com/Marigold/universal-portfolios',
       download_url='https://github.com/Marigold/universal-portfolios/archive/master.zip',
@@ -15,7 +15,7 @@ setup(name='universal-portfolios',
       license='MIT',
       packages=find_packages(),
       package_data={
-            'universal': ['data/*.pkl']
+          'universal': ['data/*.pkl']
       },
       keywords=['portfolio'],
       install_requires=reqs,

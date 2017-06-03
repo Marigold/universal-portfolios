@@ -13,7 +13,7 @@ import os
 import logging
 import itertools
 import multiprocessing
-from pandas.stats.api import ols
+from statsmodels import api as sm
 import contextlib
 from cvxopt import solvers, matrix
 solvers.options['show_progress'] = False
@@ -424,6 +424,10 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
             # find maximum correlation
             synth = corr.ix[col, ordered_cols[:i]].idxmax()
 
+            if pd.isnull(synth):
+                logging.info('NaN proxy for {} found, backfill prices'.format(col))
+                continue
+
             cr = corr.ix[col, synth]
             if abs(cr) >= corr_threshold:
                 # calculate b in y = b*x
@@ -468,7 +472,7 @@ def fill_regressed_data(S):
         y = R[col]
 
         # fit regression
-        res = ols(y=y, x=X, intercept=True)
+        res = sm.OLS(y=y, x=X, intercept=True).fit()
         pred = res.predict(x=X[y.isnull()])
 
         # get absolute prices

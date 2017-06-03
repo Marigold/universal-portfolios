@@ -20,7 +20,7 @@ If you are more into R or just looking for a good resource about Universal Portf
 ## Installation
 
 
-####Dependencies
+#### Dependencies
 
 The usual scientific libraries: numpy, scipy, pandas, matplotlib and cvxopt. All of them should be included in [Anaconda](https://store.continuum.io/cshop/anaconda/).
 

@@ -247,10 +247,15 @@ class MPT(Algo):
     def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b, allow_sell=True):
         """ Minimize b.T * sigma * b - q * b.T * mu """
         has_cash = 'CASH' in mu.index
+        symbols = list(mu.index)
         if has_cash:
             cash_ix = mu.index.get_loc('CASH')
         sigma = np.matrix(sigma)
         mu = np.matrix(mu).T
+
+        if isinstance(allow_sell, bool):
+            allow_sell = set(symbols) if allow_sell else set()
+        allow_sell = allow_sell | {'CASH'}
 
         # regularization parameter for singular cases
         ALPHA = 0.000001
@@ -268,17 +273,17 @@ class MPT(Algo):
                 h[cash_ix] = max_leverage - 1.
 
             # additional constraints on selling
-            if not allow_sell:
-                cG = matrix(-np.eye(n))
-                if has_cash:
-                    cG[cash_ix, cash_ix] = 0.
+            cG = matrix(-np.eye(n))
+            ch = -matrix(last_b)
 
-                ch = -matrix(last_b)
-                if has_cash:
-                    ch[cash_ix] = ALPHA    # causing numerical problems
+            # remove those constraints for selected indices
+            for sym in allow_sell:
+                ix = symbols.index(sym)
+                cG[ix, ix] = 0.
+                ch[ix] = ALPHA    # causing numerical problems
 
-                G = matrix(np.r_[G, cG])
-                h = matrix(np.r_[h, ch])
+            G = matrix(np.r_[G, cG])
+            h = matrix(np.r_[h, ch])
 
             if max_leverage is None or max_leverage == float('inf'):
                 sol = solvers.qp(P, q, G, h)

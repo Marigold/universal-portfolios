@@ -49,7 +49,7 @@ class SharpeEstimator(object):
 
         # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
         vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
-        expenses = pd.Series([EXPENSES.get(c, 0.) for c in sigma.index], index=sigma.index)
+        expenses = pd.Series([EXPENSES.get(c, 0.01) for c in sigma.index], index=sigma.index)
         mu = est_sh * vol + self.rfr - expenses
 
         # adjust CASH

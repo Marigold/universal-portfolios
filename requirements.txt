@@ -1,4 +1,7 @@
 pandas
 cvxopt
+scipy
 matplotlib
 pandas-datareader
+statsmodels
+scikit-learn

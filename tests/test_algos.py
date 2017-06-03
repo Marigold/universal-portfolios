@@ -1,6 +1,5 @@
 import pytest
-from universal import algos
-from .. import tools
+from universal import algos, tools
 
 
 EPS = 1e-10
@@ -20,7 +19,8 @@ def S():
 ])
 def test_bias(algo_class, S):
     """ Test forward bias of algo. Test on a portion of given data set, then add several
-    data points and see if weights has changed. """
+    data points and see if weights has changed.
+    """
     m = 10
     B1 = algo_class().run(S.iloc[:-m]).B
     B2 = algo_class().run(S).B
@@ -47,4 +47,4 @@ def test_crp(S):
     b = [1.] + [0.] * (len(S.columns) - 1)
     result = algos.CRP(b).run(S)
 
-    assert abs(result.total_wealth - S[S.columns[0]].iget(-1)) < EPS
+    assert abs(result.total_wealth - S[S.columns[0]].iloc[-1]) < EPS
