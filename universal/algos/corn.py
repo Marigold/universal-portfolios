@@ -60,7 +60,7 @@ class CORN(Algo):
             foo = [X.shift(i) for i in range(self.window)]
             self.X_flat = pd.concat(foo, axis=1)
             self.X = X
-            self.t = -1
+            self.t = self.min_history - 1
 
 
     def step_slow(self, x, last_b, history):
