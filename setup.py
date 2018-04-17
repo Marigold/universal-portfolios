@@ -1,9 +1,13 @@
 from distutils.core import setup
 from setuptools import find_packages
-from pip.req import parse_requirements
 
-install_reqs = parse_requirements('requirements.txt', session=False)
-reqs = [str(ir.req) for ir in install_reqs]
+
+def parse_requirements(filename):
+    lineiter = (line.strip() for line in open(filename))
+    return [line for line in lineiter if line and not line.startswith("#")]
+
+
+install_reqs = parse_requirements('requirements.txt')
 
 setup(name='universal-portfolios',
       version='0.3.2',
@@ -18,5 +22,5 @@ setup(name='universal-portfolios',
           'universal': ['data/*.pkl']
       },
       keywords=['portfolio'],
-      install_requires=reqs,
+      install_requires=install_reqs,
       zip_safe=False)
