@@ -6,36 +6,53 @@ from .. import tools
 from sklearn.decomposition import PCA
 from numpy.linalg import inv
 from scipy.linalg import sqrtm
+from sklearn import covariance
+import logging
 
 
+# expenses + tax dividend
 EXPENSES = {
-    'TMF': 0.0095,
-    'DPST': 0.0095,
+    'CASH': 0.,
+    'TMF': 0.0108,
+    'DPST': 0.0104,
     'ASHR': 0.0065,
     'TQQQ': 0.0095,
     'UGLD': 0.0135,
     'ERX': 0.01,
     'RING': 0.0039,
-    'LABU': 0.0097,
-    'YINN': 0.0104,
+    'LABU': 0.0109,
+    'YINN': 0.013,
     'SOXL': 0.0097,
-    'RETL': 0.0096,
+    'RETL': 0.0105,
     'TYD': 0.0097,
     'UDOW': 0.0095,
     'GBTC': 0.02,
     'FAS': 0.0096,
+    'MCHI': 0.0064,
+    'CQQQ': 0.0070,
+    'CHIX': 0.0065,
+    'UBT': 0.0095,
+    'FXI': 0.0074,
+    'DRN': 0.0109,
+    'O': 0 + 0.045 * 0.15,
+    'DSUM': 0.0045 + 0.035 * 0.15,
+    'SPY': 0.0009,
+    'TLT': 0.0015,
+    'ZIV': 0.0135,
+    'GLD': 0.004,
 }
 
 
 class SharpeEstimator(object):
 
-    def __init__(self, global_sharpe=0.4, override_sharpe=None, rfr=0.):
+    def __init__(self, global_sharpe=0.4, override_sharpe=None, rfr=0., verbose=False):
         """
         :param rfr: risk-free rate
         """
         self.override_sharpe = override_sharpe or {}
         self.global_sharpe = global_sharpe
         self.rfr = rfr
+        self.verbose = verbose
 
     def fit(self, X, sigma):
         """
@@ -49,8 +66,17 @@ class SharpeEstimator(object):
 
         # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
         vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
-        expenses = pd.Series([EXPENSES.get(c, 0.01) for c in sigma.index], index=sigma.index)
+        missing_expenses = set(sigma.index) - set(EXPENSES.keys())
+        if missing_expenses:
+            logging.warning('Missing ETF expense for {}'.format(missing_expenses))
+        expenses = pd.Series([EXPENSES.get(c, 0.005) for c in sigma.index], index=sigma.index)
         mu = est_sh * vol + self.rfr - expenses
+
+        if self.verbose:
+            print(pd.DataFrame({
+                'volatility': vol,
+                'mean': mu,
+            }))
 
         # adjust CASH
         if 'CASH' in X.columns:
@@ -297,3 +323,23 @@ class HistoricalSharpeEstimator(object):
         mu = np.minimum(mu, self.max_mu)
         # print(est_sh[{'XIV', 'ZIV', 'UGAZ'} & set(est_sh.index)].to_dict())
         return mu
+
+
+def ar(vals, frac):
+    r = list(vals[:1])
+    for v in vals[1:]:
+        r.append(frac * r[-1] + v)
+    return r
+
+
+class FractionalCovariance(covariance.OAS):
+
+    def __init__(self, frac, *args, **kwargs):
+        self.frac = frac
+        super().__init__(*args, **kwargs)
+
+    def fit(self, Y):
+        # calculate fractional returns
+        logY = np.log(Y)
+        fracY = ar(logY, self.frac)
+        return super().fit(fracY)

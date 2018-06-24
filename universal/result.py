@@ -3,6 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import pickle
 from universal import tools
+import seaborn as sns
+from statsmodels.api import OLS
+from matplotlib.colors import ListedColormap
 
 
 class PickleMixin(object):
@@ -149,6 +152,12 @@ class AlgoResult(PickleMixin):
             return 0.
 
     @property
+    def ucrp_sharpe(self):
+        from universal.algos import CRP
+        result = CRP().run(self.X.cumprod())
+        return result.sharpe
+
+    @property
     def growth_rate(self):
         return self.r_log.mean() * self.freq()
 
@@ -192,32 +201,52 @@ class AlgoResult(PickleMixin):
         all_trades = (x != 0).sum()
         return float(win) / all_trades
 
+    @property
+    def turnover(self):
+        return self.B.diff().abs().sum().sum()
+
     def freq(self, x=None):
         """ Number of data items per year. If data does not contain
         datetime index, assume daily frequency with 252 trading days a year."""
         x = x or self.r
         return tools.freq(x.index)
 
+    def alpha_beta(self):
+        rr = (self.X - 1).mean(1)
+
+        m = OLS(self.r - 1, np.vstack([np.ones(len(self.r)), rr]).T)
+        reg = m.fit()
+        alpha, beta = reg.params.const * 252, reg.params.x1
+        return alpha, beta
+
     def summary(self, name=None):
+        alpha, beta = self.alpha_beta()
         return """Summary{}:
     Profit factor: {:.2f}
     Sharpe ratio: {:.2f}
     Information ratio (wrt UCRP): {:.2f}
-    Annualized return: {:.2f}%
-    Annualized volatility: {:.2f}%
+    UCRP sharpe: {:.2f}
+    Beta / Alpha: {:.2f} / {:.3%}
+    Annualized return: {:.2%}
+    Annualized volatility: {:.2%}
     Longest drawdown: {:.0f} days
-    Max drawdown: {:.2f}%
-    Winning days: {:.1f}%
+    Max drawdown: {:.2%}
+    Winning days: {:.1%}
+    Turnover: {:.1f}
         """.format(
             '' if name is None else ' for ' + name,
             self.profit_factor,
             self.sharpe,
             self.information,
-            100 * self.annualized_return,
-            100 * self.annualized_volatility,
+            self.ucrp_sharpe,
+            beta,
+            alpha,
+            self.annualized_return,
+            self.annualized_volatility,
             self.drawdown_period,
-            100 * self.max_drawdown,
-            100 * self.winning_pct
+            self.max_drawdown,
+            self.winning_pct,
+            self.turnover,
             )
 
     def plot(self, weights=True, assets=True, portfolio_label='PORTFOLIO', show_only_important=True, **kwargs):
@@ -232,10 +261,10 @@ class AlgoResult(PickleMixin):
             return [ax1]
         else:
             if show_only_important:
-                ix = self.B.abs().sum().sort_values(ascending=False).index[:20]
-                B = self.B[ix].copy()
+                ix = self.B.abs().sum().nlargest(n=20).index
+                B = self.B.loc[:, ix].copy()
                 assets = B.columns if assets else False
-                B['others'] = self.B.drop(ix, 1).sum(1)
+                B['_others'] = self.B.drop(ix, 1).sum(1)
             else:
                 B = self.B.copy()
 
@@ -246,16 +275,16 @@ class AlgoResult(PickleMixin):
 
             # plot weights as lines
             if B.drop(['CASH'], 1, errors='ignore').values.min() < -0.01:
-                B.plot(ax=ax2, ylim=(min(0., B.values.min()), max(1., B.values.max())),
-                       legend=False, colormap=plt.get_cmap('jet'))
+                B.sort_index(axis=1).plot(ax=ax2, ylim=(min(0., B.values.min()), max(1., B.values.max())),
+                                          legend=False, color=_colors(len(assets) + 1))
             else:
                 # fix rounding errors near zero
                 if B.values.min() < 0:
                     pB = B - B.values.min()
                 else:
                     pB = B
-                pB.plot(ax=ax2, ylim=(0., max(1., pB.sum(1).max())),
-                        legend=False, colormap=plt.get_cmap('jet'), kind='area', stacked=True)
+                pB.sort_index(axis=1).plot(ax=ax2, ylim=(0., max(1., pB.sum(1).max())),
+                                           legend=False, color=_colors(len(assets) + 1), kind='area', stacked=True)
             plt.ylabel('weights')
             return [ax1, ax2]
 
@@ -373,11 +402,16 @@ class ListResult(list, PickleMixin):
                 assets = self[0].asset_equity.columns
             else:
                 assets = []
+
         if list(assets):
-            self[0].asset_equity[assets].plot(colormap=plt.get_cmap('jet'), **kwargs)
+            self[0].asset_equity.sort_index(axis=1).plot(color=_colors(len(assets) + 1), **kwargs)
 
         # plot portfolio again to highlight it
         kwargs['color'] = 'blue'
         portfolio.plot(linewidth=3., **kwargs)
 
         return ax
+
+
+def _colors(n):
+    return sns.color_palette(n_colors=n)

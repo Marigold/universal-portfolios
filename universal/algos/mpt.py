@@ -19,8 +19,8 @@ class MPT(Algo):
     PRICE_TYPE = 'ratio'
 
     def __init__(self, mu_estimator=None, cov_estimator=None, cov_window=None,
-                 min_history=None, max_leverage=1., method='mpt', q=0.01, gamma=0., allow_cash=False,
-                 optimizer_options=None, **kwargs):
+                 min_history=None, bounds=None, max_leverage=1., method='mpt', q=0.01, gamma=0.,
+                 optimizer_options=None, force_weights=None, **kwargs):
         """
         :param window: Window for calculating mean and variance. Use None for entire history.
         :param mu_estimator: TODO
@@ -30,14 +30,14 @@ class MPT(Algo):
         :param method: optimization objective - can be "mpt", "sharpe" and "variance"
         :param q: depends on method, e.g. for "mpt" it is risk aversion parameter (higher means lower aversion to risk)
         :param gamma: Penalize changing weights (can be number or Series with individual weights such as fees)
-        :param allow_cash: Allow holding cash (weights doesn't have to sum to 1)
         """
-        super(MPT, self).__init__(min_history=min_history, **kwargs)
-        self.max_leverage = max_leverage
+        super().__init__(min_history=min_history, **kwargs)
         self.method = method
         self.q = q
         self.gamma = gamma
-        self.allow_cash = allow_cash
+        self.bounds = bounds
+        self.force_weights = force_weights
+        self.max_leverage = max_leverage
         self.optimizer_options = optimizer_options or {}
 
         if cov_estimator is None:
@@ -104,13 +104,16 @@ class MPT(Algo):
 
             self.cov_estimator = CovarianceEstimator(EmpiricalCov(X, self.cov_estimator.window, self.min_history))
 
-    def estimate_mu_sigma(self, S):
+    def estimate_mu_sigma_sh(self, S):
         X = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
 
         sigma = self.cov_estimator.fit(X)
         mu = self.mu_estimator.fit(X, sigma)
+        vol = np.sqrt(np.diag(sigma))
+        sh = (mu - self.mu_estimator.rfr) / vol
+        sh[vol == 0] = 0.
 
-        return mu, sigma
+        return mu, sigma, sh
 
     def portfolio_mu(self, last_b, mu):
         return (last_b * mu).sum()
@@ -223,9 +226,12 @@ class MPT(Algo):
             cons = ({'type': 'eq', 'fun': lambda b: max_leverage - sum(b)},)
 
         if allow_sell:
-            bounds = [(0., max_leverage)]*len(last_b)
+            bounds = [(0., max_leverage)] * len(last_b)
         else:
             bounds = [(0, max_leverage) if sym == 'CASH' else (w, max_leverage) for sym, w in last_b.iteritems()]
+
+        if self.max_weight:
+            bounds = [(max(l, -self.max_weight), min(u, self.max_weight)) for l, u in bounds]
 
         x0 = last_b
         MAX_TRIES = 3
@@ -246,64 +252,79 @@ class MPT(Algo):
 
     def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b, allow_sell=True):
         """ Minimize b.T * sigma * b - q * b.T * mu """
-        has_cash = 'CASH' in mu.index
         symbols = list(mu.index)
-        if has_cash:
-            cash_ix = mu.index.get_loc('CASH')
         sigma = np.matrix(sigma)
         mu = np.matrix(mu).T
+        n = len(symbols)
+
+        force_weights = self.force_weights or {}
 
         if isinstance(allow_sell, bool):
             allow_sell = set(symbols) if allow_sell else set()
-        allow_sell = allow_sell | {'CASH'}
+        allow_sell |= {'CASH'}
 
         # regularization parameter for singular cases
         ALPHA = 0.000001
 
-        def maximize(mu, sigma, q):
-            n = len(last_b)
+        # portfolio constraints
+        bounds = self.bounds or {}
+        if 'all' not in bounds:
+            bounds['all'] = (0, 1)
 
-            P = matrix(2 * (sigma + ALPHA * np.eye(n)))
-            q = matrix(-q * mu + 2 * ALPHA * np.matrix(last_b).T)
-            G = matrix(-np.eye(n))
-            h = matrix(np.zeros(n))
+        # max leverage with cash
+        if 'CASH' not in bounds:
+            bounds['CASH'] = (- (max_leverage - 1), 1)
+            max_leverage = 1.
 
-            # CASH have different constraints
-            if has_cash:
-                h[cash_ix] = max_leverage - 1.
+        G = []
+        h = []
+        for i, sym in enumerate(symbols):
+            # forced weights
+            if sym in force_weights:
+                continue
+
+            # constraints
+            lower, upper = bounds.get(sym, bounds['all'])
+            if lower is not None:
+                r = np.zeros(n)
+                r[i] = -1
+                G.append(r)
+                h.append(-lower)
+
+            if upper is not None:
+                r = np.zeros(n)
+                r[i] = 1
+                G.append(r)
+                h.append(upper)
 
             # additional constraints on selling
-            cG = matrix(-np.eye(n))
-            ch = -matrix(last_b)
+            if sym not in allow_sell:
+                r = np.zeros(n)
+                r[i] = -1
+                G.append(r)
+                h.append(-last_b[i])
 
-            # remove those constraints for selected indices
-            for sym in allow_sell:
-                ix = symbols.index(sym)
-                cG[ix, ix] = 0.
-                ch[ix] = ALPHA    # causing numerical problems
+        G = matrix(np.vstack(G).astype(float))
+        h = matrix(np.array(h).astype(float))
 
-            G = matrix(np.r_[G, cG])
-            h = matrix(np.r_[h, ch])
+        def maximize(mu, sigma, q):
+            P = matrix(2 * (sigma + ALPHA * np.eye(n)))
+            q = matrix(-q * mu + 2 * ALPHA * np.matrix(last_b).T)
 
             if max_leverage is None or max_leverage == float('inf'):
                 sol = solvers.qp(P, q, G, h)
             else:
                 A = matrix(np.ones(n)).T
-                b = matrix(np.array([1.]))
+                b = matrix(np.array([max_leverage]))
 
-                # min_eigval = np.linalg.eig(P)[0].min()
-                # assert min_eigval > 0, 'Covariance matrix is not convex!'
+                for sym, w in force_weights.items():
+                    ix = symbols.index(sym)
+                    a = np.zeros(n)
+                    a[ix] = 1
+                    A = matrix(np.r_[A, matrix(a).T])
+                    b = matrix(np.r_[b, matrix([w])])
 
                 sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
-
-                # if self.allow_cash:
-                #     G = matrix(np.r_[G, matrix(np.ones(n)).T])
-                #     h = matrix(np.r_[h, matrix([self.max_leverage])])
-                #     sol = solvers.qp(P, q, G, h, initvals=last_b)
-                # else:
-                #     A = matrix(np.ones(n)).T
-                #     b = matrix(np.array([max_leverage]))
-                #     sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
 
             if sol['status'] != 'optimal':
                 logging.warning("Solution not found for {}, using last weights".format(last_b.name))
@@ -395,6 +416,13 @@ class CovarianceEstimator(object):
         self.window = window
 
     def fit(self, X):
+        # add CASH
+        if 'CASH' in X:
+            cov = self.fit(X.drop('CASH', axis=1))
+            cov['CASH'] = 0.
+            cov.loc['CASH'] = 0.
+            return cov
+
         # only use last window
         if self.window:
             X = X.iloc[-self.window:]

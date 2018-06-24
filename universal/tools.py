@@ -57,7 +57,7 @@ def profile(algo, data=None, to_profile=[]):
 
 
 def load_ticker(ticker, start=datetime(2000, 1, 1), end=None):
-    return DataReader(ticker,  "yahoo", start=start, end=None)
+    return DataReader(ticker, "yahoo", start=start, end=None)
 
 
 def quickrun(algo, data=None, n=1000, **kwargs):
@@ -391,7 +391,7 @@ def freq(ix):
 
     # sort if data is not monotonic
     if not ix.is_monotonic:
-        ix = ix.order()
+        ix = ix.sort_values()
 
     if isinstance(ix, pd.DatetimeIndex):
         days = (ix[-1] - ix[0]).days
