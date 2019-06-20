@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 import scipy.optimize as optimize
 from scipy.special import betaln
-from pandas.stats.moments import rolling_mean as rolling_m
-from pandas.stats.moments import rolling_corr
 import matplotlib.pyplot as plt
 from time import time
 from datetime import datetime
@@ -251,7 +249,7 @@ def rolling_corr(x, y, **kwargs):
     def rolling(dataframe, *args, **kwargs):
         ret = dataframe.copy()
         for col in ret:
-            ret[col] = rolling_m(ret[col], *args, **kwargs)
+            ret[col] = ret[col].rolling(*args, **kwargs).mean()
         return ret
 
     n, k = x.shape
@@ -267,7 +265,8 @@ def rolling_corr(x, y, **kwargs):
         for j, col_y in enumerate(y):
             DX = EX2[col_x] - EX[col_x] ** 2
             DY = EY2[col_y] - EY[col_y] ** 2
-            RXY[:, i, j] = rolling_m(x[col_x] * y[col_y], **kwargs) - EX[col_x] * EY[col_y]
+            product = x[col_x] * y[col_y]
+            RXY[:, i, j] = product.rolling(**kwargs).mean() - EX[col_x] * EY[col_y]
             RXY[:, i, j] = RXY[:, i, j] / np.sqrt(DX * DY)
 
     return RXY, EX.values
