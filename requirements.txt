@@ -1,7 +1,8 @@
-pandas==0.22.0
+pandas
 cvxopt
-scipy
+scipy==1.2
 matplotlib
-pandas-datareader
-statsmodels
+pandas-datareader>=0.7.0
+statsmodels>=0.9.0
 scikit-learn
+seaborn
