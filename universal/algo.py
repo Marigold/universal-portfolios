@@ -6,8 +6,11 @@ import logging
 import inspect
 import copy
 from .result import AlgoResult, ListResult
-from scipy.misc import comb
 from . import tools
+try:
+    from scipy.special import comb
+except ImportError:
+    from scipy.misc import comb
 
 
 class Algo(object):
