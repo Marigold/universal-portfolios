@@ -344,31 +344,55 @@ def log_progress(i, total, by=1):
         logging.debug('Progress: {}%...'.format(progress))
 
 
-def sharpe(r_log, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
-    """ Compute annualized sharpe ratio from log returns. If data does
-        not contain datetime index, assume daily frequency with 252 trading days a year
+def mu_std(R, rf_rate=None, freq=None):
+    """Return mu and std."""
+    freq = freq or _freq(R.index)
 
-        TODO: calculate real sharpe ratio (using price relatives), see
-            http://www.treasury.govt.nz/publications/research-policy/wp/2003/03-28/twp03-28.pdf
-    """
-    freq = freq or _freq(r_log.index)
+    if rf_rate is None:
+        rf_rate = R['RFR']
 
-    mu, sd = r_log.mean(), r_log.std()
+    # adjust rf rate by frequency
+    rf = rf_rate / freq
+
+    # subtract risk-free rate
+    mu, sd = (R.sub(rf, 0)).mean(), (R.sub(rf, 0)).std()
 
     # annualize return and sd
     mu = mu * freq
     sd = sd * np.sqrt(freq)
 
-    # risk-free rate
-    rf = np.log(1 + rf_rate)
+    return pd.DataFrame({
+        'mu': mu,
+        'sd': sd,
+    })
 
-    sh = (mu - rf) / (sd + alpha)**sd_factor
+
+def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
+    """ Compute annualized sharpe ratio from returns. If data does
+        not contain datetime index, assume daily frequency with 252 trading days a year
+
+        See https://treasury.govt.nz/sites/default/files/2007-09/twp03-28.pdf for more info.
+    """
+    freq = freq or _freq(r.index)
+
+    # adjust rf rate by frequency
+    rf = rf_rate / freq
+
+    # subtract risk-free rate
+    mu, sd = (r.sub(rf, 0)).mean(), (r.sub(rf, 0)).std()
+
+    # annualize return and sd
+    mu = mu * freq
+    sd = sd * np.sqrt(freq)
+
+    sh = mu / (sd + alpha)**sd_factor
 
     if isinstance(sh, float):
         if sh == np.inf:
             return np.inf * np.sign(mu - rf**(1./freq))
     else:
-        sh[sh == np.inf] *= np.sign(mu - rf**(1./freq))
+        pass
+        # sh[sh == np.inf] *= np.sign(mu - rf**(1./freq))
     return sh
 
 
@@ -421,20 +445,20 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
     for i, col in enumerate(ordered_cols):
         if i > 0 and S[col].isnull().any():
             # find maximum correlation
-            synth = corr.ix[col, ordered_cols[:i]].idxmax()
+            synth = corr.loc[col, ordered_cols[:i]].idxmax()
 
             if pd.isnull(synth):
                 logging.info('NaN proxy for {} found, backfill prices'.format(col))
                 continue
 
-            cr = corr.ix[col, synth]
+            cr = corr.loc[col, synth]
             if abs(cr) >= corr_threshold:
                 # calculate b in y = b*x
                 nn = X[col].notnull()
-                b = (X.ix[nn, col] * X.ix[nn, synth]).sum() / (X.ix[nn, synth]**2).sum()
+                b = (X.loc[nn, col] * X.loc[nn, synth]).sum() / (X.loc[nn, synth]**2).sum()
 
                 # fill missing data
-                X.ix[~nn, col] = b * X.ix[~nn, synth]
+                X.loc[~nn, col] = b * X.loc[~nn, synth]
 
                 logging.info('Filling missing values of {} by {:.2f}*{} (correlation {:.2f})'.format(
                         col, b, synth, cr))
@@ -543,11 +567,12 @@ def cov_to_corr(sigma):
     return sigma / np.sqrt(np.matrix(np.diag(sigma)).T.dot(np.matrix(np.diag(sigma))))
 
 
-def get_cash(S, interest_rate=0.025):
-    rf_rate = (1 + interest_rate) ** (1. / freq(S.index))
+def get_cash(S, ib_fee=0.015):
+    assert 'RFR' in S.columns, 'TODO'
+    rf_rate = 1 + (S.RFR + ib_fee) / freq(S.index)
     cash = pd.Series(rf_rate, index=S.index)
     cash = cash.cumprod()
-    cash = cash / cash[-1]
+    cash = cash / cash.iloc[-1]
     return cash
 
 

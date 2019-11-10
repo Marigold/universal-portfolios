@@ -10,7 +10,7 @@ def parse_requirements(filename):
 install_reqs = parse_requirements('requirements.txt')
 
 setup(name='universal-portfolios',
-      version='0.3.2',
+      version='0.3.3',
       description='Collection of algorithms for online portfolio selection',
       url='https://github.com/Marigold/universal-portfolios',
       download_url='https://github.com/Marigold/universal-portfolios/archive/master.zip',

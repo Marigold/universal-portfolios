@@ -6,6 +6,7 @@ import logging
 import inspect
 import copy
 from .result import AlgoResult, ListResult
+from scipy.special import comb
 from . import tools
 try:
     from scipy.special import comb
@@ -88,7 +89,7 @@ class Algo(object):
         self.init_step(X)
         for t, (_, x) in enumerate(X.iterrows()):
             # save weights
-            B.ix[t] = last_b
+            B.iloc[t] = last_b
 
             # keep initial weights for min_history
             if t < min_history:

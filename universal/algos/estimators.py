@@ -8,6 +8,7 @@ from numpy.linalg import inv
 from scipy.linalg import sqrtm
 from sklearn import covariance
 import logging
+import plotly.graph_objs as go
 
 
 # expenses + tax dividend
@@ -40,16 +41,31 @@ EXPENSES = {
     'TLT': 0.0015,
     'ZIV': 0.0135,
     'GLD': 0.004,
+    'BABA': 0.,
+    'BIDU': 0.,
+    'IEF': 0.0015,
+    'KWEB': 0.007,
+    'JPNL': 0.0121,
+    'EDC': 0.0148,
+    'EEMV': 0.0025,
+    'USMV': 0.0015,
+    'ACWV': 0.002,
+    'EFAV': 0.002,
+    'KRE': 0.0035,
+    'ZN': 0.,
+    'RFR': 0.,
 }
 
 
 class SharpeEstimator(object):
 
-    def __init__(self, global_sharpe=0.4, override_sharpe=None, rfr=0., verbose=False):
+    def __init__(self, global_sharpe=0.4, override_sharpe=None, override_mean=None, capm=None, rfr=0., verbose=False):
         """
         :param rfr: risk-free rate
         """
         self.override_sharpe = override_sharpe or {}
+        self.override_mean = override_mean or {}
+        self.capm = capm or {}
         self.global_sharpe = global_sharpe
         self.rfr = rfr
         self.verbose = verbose
@@ -72,15 +88,27 @@ class SharpeEstimator(object):
         expenses = pd.Series([EXPENSES.get(c, 0.005) for c in sigma.index], index=sigma.index)
         mu = est_sh * vol + self.rfr - expenses
 
+        # adjust CASH
+        if 'CASH' in X.columns:
+            mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
+
+        for asset, market in self.capm.items():
+            beta = sigma.loc[market, asset] / sigma.loc[market, market]
+            prev_mu = mu[asset]
+            mu[asset] = self.rfr + beta * (mu[market] - self.rfr)
+            if self.verbose:
+                print(f'Beta of {beta:.2f} changed {asset} mean return from {prev_mu:.1%} to {mu[asset]:.1%}')
+
+        if self.override_mean:
+            for k, v in self.override_mean.items():
+                if k in mu.index:
+                    mu.loc[k] = v
+
         if self.verbose:
             print(pd.DataFrame({
                 'volatility': vol,
                 'mean': mu,
             }))
-
-        # adjust CASH
-        if 'CASH' in X.columns:
-            mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
 
         return mu
 
@@ -343,3 +371,208 @@ class FractionalCovariance(covariance.OAS):
         logY = np.log(Y)
         fracY = ar(logY, self.frac)
         return super().fit(fracY)
+
+
+class JPMEstimator(object):
+
+    def __init__(self, year=2020, rfr=0., verbose=False):
+        self.rfr = rfr
+        self.verbose = verbose
+        self.year = year
+        self.col_ret = f'Arithmetic Return {year}'
+
+    def _parse_jpm(self):
+        # load excel
+        df = pd.read_excel(f'data/jpm-matrix-usd-{self.year}.xlsx', skiprows=7)
+        df.columns = ['class', 'asset', f'Compound Return {self.year}', self.col_ret, 'Annualized Volatility', f'Compound Return {self.year - 1}'] + list(df.columns[6:])
+        df['class'] = df['class'].fillna(method='ffill')
+
+        # correlation matrix
+        corr = df.iloc[:, 6:]
+        corr.index = df.asset
+        corr.columns = df.asset
+        corr = corr.fillna(corr.T)
+
+        # returns matrix
+        rets = df.iloc[:, 1:6].set_index('asset')
+        rets = rets.replace({'-': None}).astype(float) / 100
+
+        # fix names
+        rets.index = [c.replace('\xa0', ' ') for c in rets.index]
+        corr.index = [c.replace('\xa0', ' ') for c in corr.index]
+        corr.columns = [c.replace('\xa0', ' ') for c in corr.columns]
+
+        rets['Sharpe'] = (rets[self.col_ret] - rets.loc['U.S. Cash', self.col_ret]) / rets['Annualized Volatility']
+
+        return rets, corr
+
+    def jpm_map(self):
+        jpm = {}
+        for k, syms in JPM_MAP.items():
+            jpm[k] = k
+            for sym in syms:
+                jpm[sym] = k
+        return jpm
+
+    def simulate(self, S):
+        # simulate assets from JPM
+        rets, corr = self._parse_jpm()
+
+        freq = tools.freq(S.index)
+        mean = rets[self.col_ret] / freq
+        vols = rets['Annualized Volatility'] / np.sqrt(freq)
+        cov = corr * np.outer(vols, vols)
+        Y = np.random.multivariate_normal(mean, cov, size=len(S))
+
+        Y = pd.DataFrame(1 + Y, columns=mean.index, index=S.index).cumprod()
+
+        # all values should end with 1
+        return Y / Y.iloc[-1]
+
+    def plot(self):
+        rets, corr = self._parse_jpm()
+        layout = go.Layout(
+            yaxis={'range': [0, rets[self.col_ret].max() * 1.1]},
+            hovermode='closest',
+            height=800,
+            width=800,
+        )
+        rets.iplot(kind='scatter', mode='markers', x='Annualized Volatility', y=self.col_ret, text=list(rets.index), layout=layout)
+
+
+class JPMMeanEstimator(JPMEstimator):
+
+    def __init__(self, override_mean=None, **kwargs):
+        self.override_mean = override_mean
+        super().__init__(**kwargs)
+
+    def fit(self, X, sigma):
+        rets, _ = self._parse_jpm()
+
+        sh = rets['Sharpe']
+
+        # calculate sharpe ratio for assets
+        jpm = self.jpm_map()
+        sh = {col: sh[jpm[col]] for col in X.columns}
+
+        self.se = SharpeEstimator(override_sharpe=sh, rfr=self.rfr, verbose=False)
+        rets = self.se.fit(X, sigma)
+
+        if self.override_mean:
+            for k, v in self.override_mean.items():
+                rets.loc[k] = v
+
+        if self.verbose:
+            print(pd.DataFrame({
+                'volatility': np.sqrt(np.diag(sigma)),
+                'mean': rets,
+            }))
+
+        assert set(X.columns) <= set(rets.index)
+        return rets[X.columns]
+
+
+class JPMCovEstimator(JPMEstimator):
+
+    def __init__(self, window=None, use_jpm_volatility=False):
+        self.window = window
+        self.use_jpm_volatility = use_jpm_volatility
+        super().__init__()
+
+    def fit(self, X, ):
+        rets, corr = self._parse_jpm()
+
+        jpm = self.jpm_map()
+
+        if set(X.columns) - set(jpm.keys()):
+            raise Exception(f'{set(X.columns) - set(jpm.keys())} are missing from JPM_MAP')
+        ix = [jpm[c] for c in X.columns]
+        corr = corr.loc[:, ix].loc[ix, :]
+        corr.index = X.columns
+        corr.columns = X.columns
+        vols = rets.loc[ix, 'Annualized Volatility']
+
+        if not self.use_jpm_volatility:
+            if self.window:
+                X = X.iloc[-self.window:]
+            vols = X.std() * np.sqrt(tools.freq(X.index))
+
+        # create covariance matrix from correlation
+        cov = corr * np.outer(vols, vols)
+
+        # cov.loc['CASH', 'CASH'] = 0.000001
+
+        assert set(X.columns) <= set(cov.index)
+        return cov.loc[X.columns, X.columns]
+
+
+JPM_MAP = {
+    'U.S. Cash': ('CASH',),
+    'U.S. Intermediate Treasuries': ('IEF', 'ZN', 'TYD'),
+    'U.S. Long Treasuries': ('TLT', 'TMF'),
+    'TIPS': (),
+    'U.S. Aggregate Bonds': (),
+    'U.S. Short Duration Government/Credit': (),
+    'U.S. Long Duration Government/Credit': (),
+    'U.S. Inv Grade Corporate Bonds': (),
+    'U.S. Long Corporate Bonds': (),
+    'U.S. High Yield Bonds': ('HYG',),
+    'U.S. Leveraged Loans': ('BKLN',),
+    'World Government Bonds hedged': (),
+    'World Government Bonds': (),
+    'World ex-U.S. Government Bonds hedged': (),
+    'World ex-U.S. Government Bonds': (),
+    'Emerging Markets Sovereign Debt': (),
+    'Emerging Markets Local Currency Debt': ('LEMB',),
+    'Emerging Markets Corporate Bonds': ('CEMB',),
+    'U.S. Muni 1-15 Yr Blend': (),
+    'U.S. Muni High Yield': ('HYD',),
+    'U.S. Large Cap': ('SPY', 'TQQQ'),
+    'U.S. Mid Cap': (),
+    'U.S. Small Cap': ('IWM',),
+    'Euro Area Large Cap': (),
+    'Japanese Equity': ('EWJ',),
+    'Hong Kong Equity': (),
+    'UK Large Cap': (),
+    'EAFE Equity hedged': ('DBEF',),
+    'EAFE Equity': (),
+    'Emerging Markets Equity': ('VWO',),
+    'AC Asia ex-Japan Equity': ('AAXJ',),
+    'AC World Equity': (),
+    'U.S. Equity Value Factor': (),
+    'U.S. Equity Momentum Factor': (),
+    'U.S. Equity Quality Factor': (),
+    'U.S. Equity Minimum Volatility Factor': (),
+    'U.S. Equity Dividend Yield Factor': (),
+    'U.S. Equity Diversified Factor': (),
+    'Global Convertible': (),
+    'Global Credit Sensitive Convertible': (),
+    'Private Equity': (),
+    'U.S. Core Real Estate*': (),
+    'U.S. Value-Added Real Estate*': (),
+    'European ex-UK Core Real Estate*': (),
+    'Asia Pacific Core Real Estate*': (),
+    'U.S. REITs': (),
+    'Global Infrastructure Equity': ('IGF',),
+    'Global Infrastructure Debt': (),
+    'Diversified Hedge Funds': (),
+    'Event Driven Hedge Funds': (),
+    'Long Bias Hedge Funds': (),
+    'Relative Value Hedge Funds': (),
+    'Macro Hedge Funds': (),
+    'Direct Lending*': (),
+    'Commodities*': (),
+    'Gold*': (),
+    # added 2020
+    'U.S. Inflation': (),
+    'U.S. Securitized': (),
+    'U.S. Convertible Bond hedged': (),
+    'Global Convertible Bond': (),
+    'U.S. Core Real Estate': (),
+    'Asia Pacific Core Real Estate': (),
+    'U.S. Value-Added Real Estate': (),
+    'Gold': (),
+    'Direct Lending': (),
+    'European ex-UK Core Real Estate': (),
+    'Commodities': (),
+}

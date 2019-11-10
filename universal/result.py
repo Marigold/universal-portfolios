@@ -44,6 +44,13 @@ class AlgoResult(PickleMixin):
         # update logarithms, fees, etc.
         self._recalculate()
 
+    def set_rf_rate(self, rf_rate):
+        if isinstance(rf_rate, float):
+            self.rf_rate = rf_rate
+        else:
+            self.rf_rate = rf_rate.reindex(self.X.index)
+        return self
+
     @property
     def X(self):
         return self._X
@@ -155,6 +162,7 @@ class AlgoResult(PickleMixin):
     def ucrp_sharpe(self):
         from .algos import CRP
         result = CRP().run(self.X.cumprod())
+        result.set_rf_rate(self.rf_rate)
         return result.sharpe
 
     @property
@@ -264,7 +272,8 @@ class AlgoResult(PickleMixin):
                 ix = self.B.abs().sum().nlargest(n=20).index
                 B = self.B.loc[:, ix].copy()
                 assets = B.columns if assets else False
-                B['_others'] = self.B.drop(ix, 1).sum(1)
+                if B.shape[1] > 20:
+                    B['_others'] = self.B.drop(ix, 1).sum(1)
             else:
                 B = self.B.copy()
 
@@ -278,6 +287,7 @@ class AlgoResult(PickleMixin):
                 B.sort_index(axis=1).plot(ax=ax2, ylim=(min(0., B.values.min()), max(1., B.values.max())),
                                           legend=False, color=_colors(len(assets) + 1))
             else:
+                B = B.drop('CASH', 1, errors='ignore')
                 # fix rounding errors near zero
                 if B.values.min() < 0:
                     pB = B - B.values.min()

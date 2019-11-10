@@ -29,6 +29,8 @@ class MPT(Algo):
         :param max_leverage: Max leverage to use.
         :param method: optimization objective - can be "mpt", "sharpe" and "variance"
         :param q: depends on method, e.g. for "mpt" it is risk aversion parameter (higher means lower aversion to risk)
+            from https://en.wikipedia.org/wiki/Modern_portfolio_theory#Efficient_frontier_with_no_risk-free_asset
+            q=2 is equivalent to full-kelly, q=1 is equivalent to half kelly
         :param gamma: Penalize changing weights (can be number or Series with individual weights such as fees)
         """
         super().__init__(min_history=min_history, **kwargs)
@@ -39,6 +41,9 @@ class MPT(Algo):
         self.force_weights = force_weights
         self.max_leverage = max_leverage
         self.optimizer_options = optimizer_options or {}
+
+        if bounds and max_leverage != 1:
+            raise NotImplemented('max_leverage cannot be used with bounds, consider removing max_leverage and replace it with bounds1')
 
         if cov_estimator is None:
             cov_estimator = 'empirical'
@@ -132,7 +137,7 @@ class MPT(Algo):
         mu = np.matrix(mu)
         sigma = np.matrix(sigma)
 
-        p_vol = np.sqrt(w * sigma * w.T + q)
+        p_vol = np.sqrt(w * sigma * w.T)
         p_mu = w * mu.T
 
         if self.method == 'sharpe':
@@ -162,6 +167,9 @@ class MPT(Algo):
         # get sigma and mu estimates
         X = history
 
+        if self.bounds.keys() - X.columns:
+            raise Exception(f'Bounds for undefined symbols {self.bounds.keys() - X.columns}')
+
         # remove assets with NaN values
         # cov_est = self.cov_estimator.cov_est
         # if hasattr(cov_est, 'allow_nan') and cov_est.allow_nan:
@@ -169,7 +177,7 @@ class MPT(Algo):
         # else:
         #     na_assets = X.isnull().any().values
 
-        na_assets = (X.notnull().sum() <= self.min_history).values
+        na_assets = (X.notnull().sum() < self.min_history).values
 
         X = X.iloc[:, ~na_assets]
         x = x[~na_assets]
@@ -178,6 +186,8 @@ class MPT(Algo):
         # get sigma and mu estimations
         sigma = self.cov_estimator.fit(X)
         mu = self.mu_estimator.fit(X, sigma)
+
+        assert (mu.index == X.columns).all()
 
         # make Series from gamma
         gamma = self.gamma
@@ -207,7 +217,7 @@ class MPT(Algo):
         else:
             raise Exception('Unknown method {}'.format(self.method))
 
-    def _optimize_sharpe(self, mu, sigma, q, gamma, max_leverage, last_b, allow_sell=True):
+    def _optimize_sharpe(self, mu, sigma, q, gamma, max_leverage, last_b):
         """ Maximize sharpe ratio b.T * mu / sqrt(b.T * sigma * b + q) """
         mu = np.matrix(mu)
         sigma = np.matrix(sigma)
@@ -225,10 +235,7 @@ class MPT(Algo):
         else:
             cons = ({'type': 'eq', 'fun': lambda b: max_leverage - sum(b)},)
 
-        if allow_sell:
-            bounds = [(0., max_leverage)] * len(last_b)
-        else:
-            bounds = [(0, max_leverage) if sym == 'CASH' else (w, max_leverage) for sym, w in last_b.iteritems()]
+        bounds = [(0., max_leverage)] * len(last_b)
 
         if self.max_weight:
             bounds = [(max(l, -self.max_weight), min(u, self.max_weight)) for l, u in bounds]
@@ -250,18 +257,17 @@ class MPT(Algo):
 
         return res.x
 
-    def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b, allow_sell=True):
+    def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b):
         """ Minimize b.T * sigma * b - q * b.T * mu """
+        assert (mu.index == sigma.columns).all()
+        assert (mu.index == last_b.index).all()
+
         symbols = list(mu.index)
         sigma = np.matrix(sigma)
         mu = np.matrix(mu).T
         n = len(symbols)
 
         force_weights = self.force_weights or {}
-
-        if isinstance(allow_sell, bool):
-            allow_sell = set(symbols) if allow_sell else set()
-        allow_sell |= {'CASH'}
 
         # regularization parameter for singular cases
         ALPHA = 0.000001
@@ -275,6 +281,8 @@ class MPT(Algo):
         if 'CASH' not in bounds:
             bounds['CASH'] = (- (max_leverage - 1), 1)
             max_leverage = 1.
+
+        import ipdb; ipdb.set_trace()
 
         G = []
         h = []
@@ -297,12 +305,12 @@ class MPT(Algo):
                 G.append(r)
                 h.append(upper)
 
-            # additional constraints on selling
-            if sym not in allow_sell:
-                r = np.zeros(n)
-                r[i] = -1
-                G.append(r)
-                h.append(-last_b[i])
+            # # additional constraints on selling
+            # if sym not in allow_sell:
+            #     r = np.zeros(n)
+            #     r[i] = -1
+            #     G.append(r)
+            #     h.append(-last_b[i])
 
         G = matrix(np.vstack(G).astype(float))
         h = matrix(np.array(h).astype(float))
@@ -411,16 +419,16 @@ class MPT(Algo):
 class CovarianceEstimator(object):
     """ Estimator which accepts sklearn objects. """
 
-    def __init__(self, cov_est, window):
+    def __init__(self, cov_est, window, standardize=True):
         self.cov_est = cov_est
         self.window = window
+        self.standardize = standardize
 
     def fit(self, X):
         # add CASH
         if 'CASH' in X:
             cov = self.fit(X.drop('CASH', axis=1))
-            cov['CASH'] = 0.
-            cov.loc['CASH'] = 0.
+            cov = cov.reindex(X.columns, fill_value=0, axis=0).reindex(X.columns, fill_value=0, axis=1)
             return cov
 
         # only use last window
@@ -430,6 +438,10 @@ class CovarianceEstimator(object):
         # remove zero-variance elements
         zero_variance = X.std() == 0
         Y = X.iloc[:, ~zero_variance.values]
+
+        # most estimators assume isotropic covariance matrix, so standardize before feeding them
+        std = Y.std()
+        Y = Y / std
 
         # can estimator handle NaN values?
         if getattr(self.cov_est, 'allow_nan', False):
@@ -446,6 +458,9 @@ class CovarianceEstimator(object):
             # full_cov = self.cov_est.fit(Y).covariance_
             # full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
             # cov.update(full_cov)
+
+        # standardize back
+        cov = np.outer(std, std) * cov
 
         # put back zero covariance
         cov = cov.reindex(X.columns).reindex(columns=X.columns).fillna(0.)
