@@ -407,7 +407,6 @@ class ListResult(list, PickleMixin):
             self[0].asset_equity.sort_index(axis=1).plot(color=_colors(len(assets) + 1), **kwargs)
 
         # plot portfolio again to highlight it
-        kwargs['color'] = 'blue'
         portfolio.plot(linewidth=3., **kwargs)
 
         return ax
