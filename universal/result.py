@@ -153,7 +153,7 @@ class AlgoResult(PickleMixin):
 
     @property
     def ucrp_sharpe(self):
-        from universal.algos import CRP
+        from .algos import CRP
         result = CRP().run(self.X.cumprod())
         return result.sharpe
 
@@ -294,7 +294,7 @@ class AlgoResult(PickleMixin):
         :return: New AlgoResult object.
         """
         if result is None:
-            from algos import CRP
+            from .algos import CRP
             result = CRP().run(self.X.cumprod())
 
         return AlgoResult(self.X, self.B - result.B)
@@ -382,7 +382,7 @@ class ListResult(list, PickleMixin):
 
         # plot uniform constant rebalanced portfolio
         if ucrp:
-            from algos import CRP
+            from .algos import CRP
             crp_algo = CRP().run(self[0].X.cumprod())
             crp_algo.fee = self[0].fee
             d['UCRP'] = crp_algo.equity
@@ -390,7 +390,7 @@ class ListResult(list, PickleMixin):
 
         # add bah
         if bah:
-            from algos import BAH
+            from .algos import BAH
             bah_algo = BAH().run(self[0].X.cumprod())
             bah_algo.fee = self[0].fee
             d['BAH'] = bah_algo.equity
