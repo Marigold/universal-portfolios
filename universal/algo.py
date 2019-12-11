@@ -289,7 +289,7 @@ class Algo(object):
             params = dict(zip(kwargs.keys(), seq))
 
             # run algo
-            all_params = dict(params.items() + simple_params.items())
+            all_params = dict(list(params.items()) + list(simple_params.items()))
             params_to_try.append(all_params)
 
             # create name with format param:value
