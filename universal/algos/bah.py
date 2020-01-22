@@ -4,7 +4,7 @@ import numpy as np
 
 
 class BAH(Algo):
-    """ Bay and hold strategy. Buy equal amount of each stock in the beginning and hold them
+    """ Buy and hold strategy. Buy equal amount of each stock in the beginning and hold them
     forever.  """
 
     PRICE_TYPE = 'raw'

@@ -229,12 +229,12 @@ class Algo(object):
             # normalize prices so that they start with 1.
             r = {}
             for name, s in S.iteritems():
-                init_val = s.ix[s.first_valid_index()]
+                init_val = s.loc[s.first_valid_index()]
                 r[name] = s / init_val
             X = pd.DataFrame(r)
 
             if replace_missing:
-                X.ix[0] = 1.
+                X.iloc[0] = 1.
                 X = X.fillna(method='ffill')
 
             return X

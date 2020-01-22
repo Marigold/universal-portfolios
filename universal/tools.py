@@ -367,7 +367,7 @@ def mu_std(R, rf_rate=None, freq=None):
     })
 
 
-def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
+def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1., w=None):
     """ Compute annualized sharpe ratio from returns. If data does
         not contain datetime index, assume daily frequency with 252 trading days a year
 
@@ -379,9 +379,16 @@ def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
     rf = rf_rate / freq
 
     # subtract risk-free rate
-    mu, sd = (r.sub(rf, 0)).mean(), (r.sub(rf, 0)).std()
+    r = r.sub(rf, 0)
 
     # annualize return and sd
+    if w is None:
+        mu = r.mean()
+        sd = r.std()
+    else:
+        mu = w_avg(r, w)
+        sd = w_std(r, w)
+
     mu = mu * freq
     sd = sd * np.sqrt(freq)
 
@@ -396,15 +403,23 @@ def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
     return sh
 
 
-def sharpe_std(X):
+def w_avg(y, w):
+    return (y * w).sum() / w.sum()
+
+
+def w_std(y, w):
+    return np.sqrt(np.maximum(0, w_avg(y ** 2, w) - (w_avg(y, w)) ** 2))
+
+
+def sharpe_std(r, rf_rate=None, freq=None):
     """ Calculate sharpe ratio std. Confidence interval is taken from
     https://cran.r-project.org/web/packages/SharpeR/vignettes/SharpeRatio.pdf
     :param X: log returns
     """
-    sh = sharpe(X)
-    n = X.notnull().sum()
-    f = freq(X.index)
-    return np.sqrt((1. + sh**2/2.) * f / n)
+    sh = sharpe(r, rf_rate=rf_rate, freq=freq)
+    n = r.notnull().sum()
+    freq = freq or _freq(r.index)
+    return np.sqrt((1. + sh**2/2.) * freq / n)
 
 
 def freq(ix):
@@ -567,10 +582,9 @@ def cov_to_corr(sigma):
     return sigma / np.sqrt(np.matrix(np.diag(sigma)).T.dot(np.matrix(np.diag(sigma))))
 
 
-def get_cash(S, ib_fee=0.015):
-    assert 'RFR' in S.columns, 'TODO'
-    rf_rate = 1 + (S.RFR + ib_fee) / freq(S.index)
-    cash = pd.Series(rf_rate, index=S.index)
+def get_cash(rfr, ib_fee=0.015):
+    rf_rate = 1 + (rfr + ib_fee) / freq(rfr.index)
+    cash = pd.Series(rf_rate, index=rfr.index)
     cash = cash.cumprod()
     cash = cash / cash.iloc[-1]
     return cash

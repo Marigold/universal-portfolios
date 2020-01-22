@@ -7,6 +7,8 @@ from sklearn.decomposition import PCA
 from numpy.linalg import inv
 from scipy.linalg import sqrtm
 from sklearn import covariance
+from statsmodels.api import OLS
+from statsmodels.tools import add_constant
 import logging
 import plotly.graph_objs as go
 
@@ -92,12 +94,8 @@ class SharpeEstimator(object):
         if 'CASH' in X.columns:
             mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
 
-        for asset, market in self.capm.items():
-            beta = sigma.loc[market, asset] / sigma.loc[market, market]
-            prev_mu = mu[asset]
-            mu[asset] = self.rfr + beta * (mu[market] - self.rfr)
-            if self.verbose:
-                print(f'Beta of {beta:.2f} changed {asset} mean return from {prev_mu:.1%} to {mu[asset]:.1%}')
+        for asset, markets in self.capm.items():
+            mu[asset] = self._capm_mu(asset, markets, mu, sigma, X)
 
         if self.override_mean:
             for k, v in self.override_mean.items():
@@ -111,6 +109,32 @@ class SharpeEstimator(object):
             }))
 
         return mu
+
+    def _capm_mu(self, asset, markets, mu, sigma, X):
+        """Calculate mean estimated by CAPM."""
+        freq = tools.freq(X.index)
+        X = X[[asset] + markets].dropna()
+        res = OLS(X[asset] - 1 - self.rfr / freq, add_constant(X[markets] - 1 - self.rfr / freq)).fit()
+
+        beta = res.params.drop(['const'])
+
+        prev_mu = mu[asset]
+        new_mu = self.rfr + (mu[markets] - self.rfr).dot(beta)
+
+        alpha = res.params.const * freq
+        alpha_std = freq * np.sqrt(res.cov_params().loc['const', 'const'])
+
+        if self.verbose:
+            print(f'Beta of {[x for x in beta.round(2)]} changed {asset} mean return from {prev_mu:.1%} to {new_mu:.1%} with alpha {alpha:.2%} ({alpha_std:.2%})')
+
+        # be benevolent and add alpha if it is positive
+        # k = 0.2 was fine tuned on DPST in order to get it out of the portfolio
+        k = 0.2
+        if alpha - k * alpha_std > 0 and asset in ('KRE', 'DPST'):
+            if self.verbose:
+                print(f'   Adding alpha of {alpha - k * alpha_std:.2%} for {asset}')
+            new_mu += alpha - k * alpha_std
+        return new_mu
 
 
 class MuVarianceEstimator(object):
@@ -568,7 +592,7 @@ JPM_MAP = {
     'U.S. Securitized': (),
     'U.S. Convertible Bond hedged': (),
     'Global Convertible Bond': (),
-    'U.S. Core Real Estate': (),
+    'U.S. Core Real Estate': ('VNQ',),
     'Asia Pacific Core Real Estate': (),
     'U.S. Value-Added Real Estate': (),
     'Gold': (),

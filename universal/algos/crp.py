@@ -18,7 +18,7 @@ class CRP(Algo):
         """
         :params b: Constant rebalanced portfolio weights. Default is uniform.
         """
-        super(CRP, self).__init__()
+        super().__init__()
         self.b = b
 
 
@@ -32,8 +32,10 @@ class CRP(Algo):
     def weights(self, X):
         if self.b is None:
             return np.ones(X.shape) / X.shape[1]
-        else:
+        elif self.b.ndim == 1:
             return np.repeat([self.b], X.shape[0], axis=0)
+        else:
+            return self.b
 
 
     @classmethod

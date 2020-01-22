@@ -167,8 +167,8 @@ class MPT(Algo):
         # get sigma and mu estimates
         X = history
 
-        if self.bounds.keys() - X.columns:
-            raise Exception(f'Bounds for undefined symbols {self.bounds.keys() - X.columns}')
+        if self.bounds.keys() - X.columns - {'all'}:
+            raise Exception(f'Bounds for undefined symbols {self.bounds.keys() - X.columns - set(["all"])}')
 
         # remove assets with NaN values
         # cov_est = self.cov_estimator.cov_est
@@ -178,6 +178,9 @@ class MPT(Algo):
         #     na_assets = X.isnull().any().values
 
         na_assets = (X.notnull().sum() < self.min_history).values
+
+        if any(na_assets):
+            raise Exception('Assets containing null values: {}'.format(X.columns[na_assets]))
 
         X = X.iloc[:, ~na_assets]
         x = x[~na_assets]
@@ -209,7 +212,7 @@ class MPT(Algo):
 
     def optimize(self, mu, sigma, q, gamma, max_leverage, last_b, **kwargs):
         if self.method == 'mpt':
-            return self._optimize_mpt(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
+            return self._optimize_mpt(mu, sigma, q, gamma, last_b, **kwargs)
         elif self.method == 'sharpe':
             return self._optimize_sharpe(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
         elif self.method == 'variance':
@@ -257,7 +260,7 @@ class MPT(Algo):
 
         return res.x
 
-    def _optimize_mpt(self, mu, sigma, q, gamma, max_leverage, last_b):
+    def _optimize_mpt(self, mu, sigma, q, gamma, last_b):
         """ Minimize b.T * sigma * b - q * b.T * mu """
         assert (mu.index == sigma.columns).all()
         assert (mu.index == last_b.index).all()
@@ -276,13 +279,6 @@ class MPT(Algo):
         bounds = self.bounds or {}
         if 'all' not in bounds:
             bounds['all'] = (0, 1)
-
-        # max leverage with cash
-        if 'CASH' not in bounds:
-            bounds['CASH'] = (- (max_leverage - 1), 1)
-            max_leverage = 1.
-
-        import ipdb; ipdb.set_trace()
 
         G = []
         h = []
@@ -319,20 +315,17 @@ class MPT(Algo):
             P = matrix(2 * (sigma + ALPHA * np.eye(n)))
             q = matrix(-q * mu + 2 * ALPHA * np.matrix(last_b).T)
 
-            if max_leverage is None or max_leverage == float('inf'):
-                sol = solvers.qp(P, q, G, h)
-            else:
-                A = matrix(np.ones(n)).T
-                b = matrix(np.array([max_leverage]))
+            A = matrix(np.ones(n)).T
+            b = matrix(np.array([1.]))
 
-                for sym, w in force_weights.items():
-                    ix = symbols.index(sym)
-                    a = np.zeros(n)
-                    a[ix] = 1
-                    A = matrix(np.r_[A, matrix(a).T])
-                    b = matrix(np.r_[b, matrix([w])])
+            for sym, w in force_weights.items():
+                ix = symbols.index(sym)
+                a = np.zeros(n)
+                a[ix] = 1
+                A = matrix(np.r_[A, matrix(a).T])
+                b = matrix(np.r_[b, matrix([w])])
 
-                sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
+            sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
 
             if sol['status'] != 'optimal':
                 logging.warning("Solution not found for {}, using last weights".format(last_b.name))
@@ -350,10 +343,10 @@ class MPT(Algo):
             qq = 2 * sigma * matrix(last_b) - q * mu + matrix(gamma * c)
 
             G = matrix(np.r_[-np.diag(c), np.eye(n), -np.eye(n)])
-            h = matrix(np.r_[np.zeros(n), self.max_leverage - last_b, last_b])
+            h = matrix(np.r_[np.zeros(n), 1. - last_b, last_b])
 
             A = matrix(np.ones(n)).T
-            b = matrix([self.max_leverage - sum(last_b)])
+            b = matrix([1. - sum(last_b)])
 
             sol = solvers.qp(P, qq, G, h, A, b, initvals=np.zeros(n))
 
