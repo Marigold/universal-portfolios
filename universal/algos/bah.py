@@ -13,12 +13,16 @@ class BAH(Algo):
         """
         :params b: Portfolio weights at start. Default are uniform.
         """
-        super(BAH, self).__init__()
+        super().__init__()
         self.b = b
 
     def weights(self, S):
         """ Weights function optimized for performance. """
-        b = np.ones(S.shape[1]) / S.shape[1] if self.b is None else self.b
+        if self.b is None:
+            b = np.array([0 if s == 'CASH' else 1 for s in S.columns])
+            b = b / b.sum()
+        else:
+            b = self.b
 
         # weights are proportional to price times initial weights
         w = S * b
@@ -26,9 +30,7 @@ class BAH(Algo):
         # normalize
         w = w.div(w.sum(axis=1), axis=0)
 
-        # shift
-        w = w.shift(1)
-        w.ix[0] = 1./S.shape[1]
+        w.iloc[0] = 1./S.shape[1]
 
         return w
 

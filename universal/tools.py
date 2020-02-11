@@ -579,7 +579,7 @@ def bootstrap_algo(S, algo, n, drop_fraction=0.1, random_state=None, n_jobs=-1):
 
 def cov_to_corr(sigma):
     """ Convert covariance matrix to correlation matrix. """
-    return sigma / np.sqrt(np.matrix(np.diag(sigma)).T.dot(np.matrix(np.diag(sigma))))
+    return sigma / np.sqrt(np.outer(np.diag(sigma), np.diag(sigma)))
 
 
 def get_cash(rfr, ib_fee=0.015):

@@ -48,7 +48,8 @@ class CORN(Algo):
         self.step = self.step_fast if self.fast_version else self.step_slow
 
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
+        m = len(columns)
         return np.ones(m) / m
 
 

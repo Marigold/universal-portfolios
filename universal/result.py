@@ -184,8 +184,7 @@ class AlgoResult(PickleMixin):
     @property
     def information(self):
         """ Information ratio benchmarked against uniform CRP portfolio. """
-        s = self.X.mean(axis=1)
-        x = self.r_log - np.log(s)
+        x = self.r - self.ucrp_r
 
         mu, sd = x.mean(), x.std()
 
@@ -250,7 +249,17 @@ class AlgoResult(PickleMixin):
 
     @property
     def turnover(self):
-        return self.B.diff().abs().sum().sum() * self.freq() / len(self.B)
+        B = self.B
+        X = self.X
+
+        # equity increase
+        E = (B.shift(1) * X).sum(axis=1)
+
+        # change in weights
+        D = (B.multiply(E, axis=0) - B.shift(1) * X).abs()
+        return D.sum().sum() * self.freq() / len(B)
+
+        # return self.B.diff().abs().sum().sum() * self.freq() / len(self.B)
 
     def freq(self, x=None):
         """ Number of data items per year. If data does not contain
@@ -260,9 +269,23 @@ class AlgoResult(PickleMixin):
 
     def _capm(self):
         rfr = self.rf_rate / self.freq()
-        rr = (self.X - 1).mean(1) - rfr
-        m = OLS(self.r - 1 - rfr, np.vstack([np.ones(len(self.r)), rr]).T)
+        rr = self.ucrp_r - rfr
+        if 'CASH' in self.B.columns:
+            cash = self.B.CASH
+        else:
+            cash = 0
+        m = OLS(self.r - 1 - (1 - cash) * rfr, np.vstack([np.ones(len(self.r)), rr - 1]).T)
         return m.fit()
+
+    @property
+    def ucrp_r(self):
+        return (self.X.drop('CASH', axis=1, errors='ignore') - 1).mean(1) + 1
+
+    @property
+    def residual_r(self):
+        """Portfolio minus UCRP"""
+        _, beta = self.alpha_beta()
+        return (self.r - 1) - beta * (self.ucrp_r - 1) + 1
 
     def alpha_beta(self):
         reg = self._capm()
@@ -422,14 +445,7 @@ class ListResult(list, PickleMixin):
 
         # plot residual strategy
         if residual:
-            # portfolio minus UCRP
-            _, beta = self[0].alpha_beta()
-            B = self[0].B - beta / self[0].B.shape[1]
-
-            from universal.algos import CRP
-            crp_algo = CRP(B).run(self[0].X.cumprod())
-            crp_algo.fee = self[0].fee
-            d['RESIDUAL'] = crp_algo.equity
+            d['RESIDUAL'] = self[0].residual_r.cumprod()
             d[['RESIDUAL']].plot(**kwargs)
 
         # plot uniform constant rebalanced portfolio

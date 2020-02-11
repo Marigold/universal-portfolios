@@ -43,11 +43,11 @@ class Algo(object):
         self.min_history = min_history or 0
         self.frequency = frequency
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
         """ Set initial weights.
         :param m: Number of assets.
         """
-        return np.zeros(m)
+        return np.zeros(len(columns))
 
     def init_step(self, X):
         """ Called before step method. Use to initialize persistent variables.
@@ -68,7 +68,7 @@ class Algo(object):
 
     def _use_history_step(self):
         """ Use history parameter in step method? """
-        step_args = inspect.getargspec(self.step)[0]
+        step_args = inspect.signature(self.step).parameters
         return len(step_args) >= 4
 
     def weights(self, X, min_history=None, log_progress=True):
@@ -78,7 +78,7 @@ class Algo(object):
 
         # init
         B = X.copy() * 0.
-        last_b = self.init_weights(X.shape[1])
+        last_b = self.init_weights(X.columns)
         if isinstance(last_b, np.ndarray):
             last_b = pd.Series(last_b, X.columns)
 
@@ -121,7 +121,7 @@ class Algo(object):
         """ Split index into chunks so that each chunk except of the last has length
         divisible by freq. """
         chunksize = int(len(ix) / freq / nr_chunks + 1) * freq
-        return [ix[i*chunksize:(i+1)*chunksize] for i in range(len(ix) / chunksize + 1)]
+        return [ix[i*chunksize:(i+1)*chunksize] for i in range(int(len(ix) / chunksize + 1))]
 
     def run(self, S, n_jobs=1, log_progress=True):
         """ Run algorithm and get weights.
@@ -150,13 +150,13 @@ class Algo(object):
         else:
             with tools.mp_pool(n_jobs) as pool:
                 ix_blocks = self._split_index(X.index, pool._processes * 2, self.frequency)
-                min_histories = np.maximum(np.cumsum([0] + map(len, ix_blocks[:-1])) - 1, self.min_history)
+                min_histories = np.maximum(np.cumsum([0] + list(map(len, ix_blocks[:-1]))) - 1, self.min_history)
 
-                B_blocks = pool.map(_parallel_weights, [(self, X.ix[:ix_block[-1]], min_history, log_progress)
+                B_blocks = pool.map(_parallel_weights, [(self, X.loc[:ix_block[-1]], min_history, log_progress)
                                     for ix_block, min_history in zip(ix_blocks, min_histories)])
 
             # join weights to one dataframe
-            B = pd.concat([B_blocks[i].ix[ix] for i, ix in enumerate(ix_blocks)])
+            B = pd.concat([B_blocks[i].loc[ix] for i, ix in enumerate(ix_blocks)])
 
         # cast to dataframe if weights return numpy array
         if not isinstance(B, pd.DataFrame):

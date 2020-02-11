@@ -54,14 +54,75 @@ EXPENSES = {
     'ACWV': 0.002,
     'EFAV': 0.002,
     'KRE': 0.0035,
+    'EEM': 0.0068,
     'ZN': 0.,
     'RFR': 0.,
 }
 
 
+class CovarianceEstimator(object):
+    """ Estimator which accepts sklearn objects. """
+
+    def __init__(self, cov_est, window, standardize=True):
+        self.cov_est = cov_est
+        self.window = window
+        self.standardize = standardize
+
+    def fit(self, X):
+        assert X.mean().mean() < 1.
+
+        # exclude CASH from covariance
+        if 'CASH' in X:
+            cov = self.fit(X.drop('CASH', axis=1))
+            cov = cov.reindex(X.columns, fill_value=0, axis=0).reindex(X.columns, fill_value=0, axis=1)
+            return cov
+
+        # only use last window
+        if self.window:
+            X = X.iloc[-self.window:]
+
+        # remove zero-variance elements
+        zero_variance = X.std() == 0
+        Y = X.iloc[:, ~zero_variance.values]
+
+        # most estimators assume isotropic covariance matrix, so standardize before feeding them
+        std = Y.std()
+        Y = Y / std
+
+        # can estimator handle NaN values?
+        if getattr(self.cov_est, 'allow_nan', False):
+            self.cov_est.fit(Y)
+            cov = pd.DataFrame(self.cov_est.covariance_, index=Y.columns, columns=Y.columns)
+        else:
+            # estimation for matrix without NaN values - should be larger than min_history
+            cov = self.cov_est.fit(Y).covariance_
+            cov = pd.DataFrame(cov, index=Y.columns, columns=Y.columns)
+
+            # NOTE: nonsense - we wouldn't get positive-semidefinite matrix
+            # improve estimation for those with full history
+            # Y = Y.dropna(1, how='any')
+            # full_cov = self.cov_est.fit(Y).covariance_
+            # full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
+            # cov.update(full_cov)
+
+        # standardize back
+        cov = np.outer(std, std) * cov
+
+        # put back zero covariance
+        cov = cov.reindex(X.columns).reindex(columns=X.columns).fillna(0.)
+
+        # turn on?
+        # assert np.linalg.eig(cov)[0].min() > 0
+
+        # annualize covariance
+        cov *= tools.freq(X.index)
+
+        return cov
+
+
 class SharpeEstimator(object):
 
-    def __init__(self, global_sharpe=0.4, override_sharpe=None, override_mean=None, capm=None, rfr=0., verbose=False):
+    def __init__(self, global_sharpe=0.4, override_sharpe=None, override_mean=None, capm=None, rfr=0., verbose=False, cov_estimator=None):
         """
         :param rfr: risk-free rate
         """
@@ -71,16 +132,26 @@ class SharpeEstimator(object):
         self.global_sharpe = global_sharpe
         self.rfr = rfr
         self.verbose = verbose
+        self.cov_estimator = cov_estimator
 
     def fit(self, X, sigma):
         """
         formula for mean is:
             sh * vol + rf - expenses
         """
+        # estimate sigma again if cov_estimator is present
+        if self.cov_estimator is not None:
+            sigma = self.cov_estimator.fit(X - 1)
+
         est_sh = pd.Series(self.global_sharpe, index=sigma.index)
         for k, v in self.override_sharpe.items():
             if k in est_sh:
                 est_sh[k] = v
+
+        if isinstance(self.rfr, pd.Series):
+            rfr = self.rfr.loc[X.index[-1]]
+        else:
+            rfr = self.rfr
 
         # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
         vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
@@ -88,9 +159,9 @@ class SharpeEstimator(object):
         if missing_expenses:
             logging.warning('Missing ETF expense for {}'.format(missing_expenses))
         expenses = pd.Series([EXPENSES.get(c, 0.005) for c in sigma.index], index=sigma.index)
-        mu = est_sh * vol + self.rfr - expenses
+        mu = est_sh * vol + rfr - expenses
 
-        # adjust CASH
+        # adjust CASH - note that CASH has -1.5% fee from IB
         if 'CASH' in X.columns:
             mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
 
@@ -151,7 +222,6 @@ class HistoricalEstimator(object):
         self.window = window
 
     def fit(self, X, sigma):
-        # assume that all assets have yearly sharpe ratio 1 and deduce return from volatility
         if self.window:
             X = X.iloc[-self.window:]
 
@@ -275,6 +345,8 @@ class SingleIndexCovariance(BaseEstimator):
     It combines sample covariance matrix with covariance matrix from single-index model and
     automatically estimates shrinking parameter alpha.
     Assumes that first column represents index.
+
+    Note that Ledoit-Wolf is already implemented in scikit-learn.
     """
 
     def __init__(self, alpha=None):
@@ -395,6 +467,22 @@ class FractionalCovariance(covariance.OAS):
         logY = np.log(Y)
         fracY = ar(logY, self.frac)
         return super().fit(fracY)
+
+
+class ExponentiallyWeightedCovariance(BaseEstimator):
+
+    def __init__(self, span):
+        self.span = span
+
+    def fit(self, X):
+        alpha = 2 / (self.span + 1)
+        w = (1 - alpha)**np.arange(len(X))[::-1]
+        w = np.tile(w, (X.shape[1], 1)).T
+
+        Xv = X.values * w
+        C = Xv.T @ Xv / w[:, 0].sum()
+        self.covariance_ = C
+        return self
 
 
 class JPMEstimator(object):

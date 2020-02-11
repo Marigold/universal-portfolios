@@ -31,7 +31,10 @@ class CRP(Algo):
 
     def weights(self, X):
         if self.b is None:
-            return np.ones(X.shape) / X.shape[1]
+            b = X * 0 + 1
+            b.loc[:, 'CASH'] = 0
+            b = b.div(b.sum(axis=1), axis=0)
+            return b
         elif self.b.ndim == 1:
             return np.repeat([self.b], X.shape[0], axis=0)
         else:

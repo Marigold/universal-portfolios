@@ -36,7 +36,8 @@ class CWMR(Algo):
         self.theta = scipy.stats.norm.ppf(confidence)
 
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
+        m = len(columns)
         return np.ones(m) / m
 
 

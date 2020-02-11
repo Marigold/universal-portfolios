@@ -23,7 +23,8 @@ class EG(Algo):
         self.eta = eta
 
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
+        m = len(columns)
         return np.ones(m) / m
 
 

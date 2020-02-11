@@ -81,6 +81,10 @@ class MPT(Algo):
         self.cov_estimator = cov_estimator
         self.mu_estimator = mu_estimator
 
+    def init_weights(self, columns):
+        b = np.array([0. if c == 'CASH' else 1. for c in columns])
+        return b / b.sum()
+
     def init_step(self, X):
         # set min history to 1 year
         if not self.min_history:
@@ -112,7 +116,7 @@ class MPT(Algo):
     def estimate_mu_sigma_sh(self, S):
         X = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
 
-        sigma = self.cov_estimator.fit(X)
+        sigma = self.cov_estimator.fit(X - 1)
         mu = self.mu_estimator.fit(X, sigma)
         vol = np.sqrt(np.diag(sigma))
         sh = (mu - self.mu_estimator.rfr) / vol
@@ -124,21 +128,21 @@ class MPT(Algo):
         return (last_b * mu).sum()
 
     def portfolio_vol(self, last_b, sigma):
-        w = np.matrix(last_b)
-        sigma = np.matrix(sigma.reindex(index=last_b.index, columns=last_b.index))
-        return np.sqrt((w * sigma * w.T)[0, 0])
+        w = last_b.values
+        sigma = sigma.reindex(index=last_b.index, columns=last_b.index).values
+        return np.sqrt((w @ sigma @ w))
 
     def portfolio_gradient(self, last_b, mu, sigma, q=None, decompose=False):
         """ Calculate gradient for given objective function. Can be used to determine which stocks
         should be added / removed from portfolio.
         """
         q = q or self.q
-        w = np.matrix(last_b)
-        mu = np.matrix(mu)
-        sigma = np.matrix(sigma)
+        w = last_b.values
+        mu = mu.values
+        sigma = sigma.values
 
-        p_vol = np.sqrt(w * sigma * w.T)
-        p_mu = w * mu.T
+        p_vol = np.sqrt(w @ sigma @ w)
+        p_mu = w @ mu
 
         if self.method == 'sharpe':
             grad_sharpe = mu.T / p_vol
@@ -153,8 +157,8 @@ class MPT(Algo):
                 return grad_sharpe + grad_vol
         elif self.method == 'mpt':
             grad_mu = pd.Series(np.array(mu).ravel(), index=last_b.index)
-            grad_sigma = pd.Series(np.array(sigma * w.T).ravel(), index=last_b.index)
-            grad_vol = pd.Series(np.array(-sigma * w.T / p_vol).ravel(), index=last_b.index)
+            grad_sigma = pd.Series((sigma @ w).ravel(), index=last_b.index)
+            grad_vol = pd.Series(np.array(-sigma @ w / p_vol).ravel(), index=last_b.index)
 
             if decompose:
                 return grad_mu, grad_vol
@@ -177,8 +181,8 @@ class MPT(Algo):
         # else:
         #     na_assets = X.isnull().any().values
 
+        # check NA assets
         na_assets = (X.notnull().sum() < self.min_history).values
-
         if any(na_assets):
             raise Exception('Assets containing null values: {}'.format(X.columns[na_assets]))
 
@@ -187,8 +191,10 @@ class MPT(Algo):
         last_b = last_b[~na_assets]
 
         # get sigma and mu estimations
-        sigma = self.cov_estimator.fit(X)
+        sigma = self.cov_estimator.fit(X - 1)
         mu = self.mu_estimator.fit(X, sigma)
+
+        ss = pd.Series(np.diag(sigma), index=sigma.columns)
 
         assert (mu.index == X.columns).all()
 
@@ -207,8 +213,9 @@ class MPT(Algo):
         # find optimal portfolio
         last_b = pd.Series(last_b, index=x.index, name=x.name)
         b = self.optimize(mu, sigma, q=self.q, gamma=gamma, max_leverage=self.max_leverage, last_b=last_b, **kwargs)
+        b = pd.Series(b, index=X.columns).reindex(history.columns, fill_value=0.)
 
-        return pd.Series(b, index=X.columns).reindex(history.columns, fill_value=0.)
+        return b
 
     def optimize(self, mu, sigma, q, gamma, max_leverage, last_b, **kwargs):
         if self.method == 'mpt':
@@ -266,8 +273,8 @@ class MPT(Algo):
         assert (mu.index == last_b.index).all()
 
         symbols = list(mu.index)
-        sigma = np.matrix(sigma)
-        mu = np.matrix(mu).T
+        sigma = np.array(sigma)
+        mu = np.array(mu).T
         n = len(symbols)
 
         force_weights = self.force_weights or {}
@@ -313,7 +320,7 @@ class MPT(Algo):
 
         def maximize(mu, sigma, q):
             P = matrix(2 * (sigma + ALPHA * np.eye(n)))
-            q = matrix(-q * mu + 2 * ALPHA * np.matrix(last_b).T)
+            q = matrix(-q * mu + 2 * ALPHA * last_b.values)
 
             A = matrix(np.ones(n)).T
             b = matrix(np.array([1.]))
@@ -407,61 +414,3 @@ class MPT(Algo):
 
         b = maximize(mu, sigma, q)
         return b
-
-
-class CovarianceEstimator(object):
-    """ Estimator which accepts sklearn objects. """
-
-    def __init__(self, cov_est, window, standardize=True):
-        self.cov_est = cov_est
-        self.window = window
-        self.standardize = standardize
-
-    def fit(self, X):
-        # add CASH
-        if 'CASH' in X:
-            cov = self.fit(X.drop('CASH', axis=1))
-            cov = cov.reindex(X.columns, fill_value=0, axis=0).reindex(X.columns, fill_value=0, axis=1)
-            return cov
-
-        # only use last window
-        if self.window:
-            X = X.iloc[-self.window:]
-
-        # remove zero-variance elements
-        zero_variance = X.std() == 0
-        Y = X.iloc[:, ~zero_variance.values]
-
-        # most estimators assume isotropic covariance matrix, so standardize before feeding them
-        std = Y.std()
-        Y = Y / std
-
-        # can estimator handle NaN values?
-        if getattr(self.cov_est, 'allow_nan', False):
-            self.cov_est.fit(Y)
-            cov = pd.DataFrame(self.cov_est.covariance_, index=Y.columns, columns=Y.columns)
-        else:
-            # estimation for matrix without NaN values - should be larger than min_history
-            cov = self.cov_est.fit(Y).covariance_
-            cov = pd.DataFrame(cov, index=Y.columns, columns=Y.columns)
-
-            # NOTE: nonsense - we wouldn't get positive-semidefinite matrix
-            # improve estimation for those with full history
-            # Y = Y.dropna(1, how='any')
-            # full_cov = self.cov_est.fit(Y).covariance_
-            # full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
-            # cov.update(full_cov)
-
-        # standardize back
-        cov = np.outer(std, std) * cov
-
-        # put back zero covariance
-        cov = cov.reindex(X.columns).reindex(columns=X.columns).fillna(0.)
-
-        # turn on?
-        # assert np.linalg.eig(cov)[0].min() > 0
-
-        # annualize covariance
-        cov *= tools.freq(X.index)
-
-        return cov
