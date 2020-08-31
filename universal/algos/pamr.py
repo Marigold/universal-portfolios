@@ -50,7 +50,7 @@ class PAMR(Algo):
         return np.ones(m) / m
 
 
-    def step(self, x, last_b):
+    def step(self, x, last_b, history):
         # calculate return prediction
         b = self.update(last_b, x, self.eps, self.C)
         return b

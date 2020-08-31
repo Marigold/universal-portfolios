@@ -6,11 +6,12 @@ def parse_requirements(filename):
     lineiter = (line.strip() for line in open(filename))
     return [line for line in lineiter if line and not line.startswith("#")]
 
+version='0.4.0'
 
 install_reqs = parse_requirements('requirements.txt')
 
 setup(name='universal-portfolios',
-      version='0.4.0',
+      version=version,
       description='Collection of algorithms for online portfolio selection',
       url='https://github.com/Marigold/universal-portfolios',
       download_url='https://github.com/Marigold/universal-portfolios/archive/master.zip',

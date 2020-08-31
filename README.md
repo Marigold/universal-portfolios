@@ -1,10 +1,8 @@
-
-universal-portfolios
-===========
+# universal-portfolios
 
 The purpose of this package is to put together different online portfolio selection algorithms and provide unified tools for their analysis. If you do not know what online portfolio is, look at [Ernest Chan blog](http://epchan.blogspot.cz/2007/01/universal-portfolios.html), [CASTrader](http://www.castrader.com/2006/11/universal_portf.html) or a recent [survey by Bin Li and Steven C. H. Hoi](http://arxiv.org/abs/1212.2129).
 
-In short, the purpose of online portfolio is to *choose portfolio weights in every period to maximize its final wealth*. Examples of such portfolios could be [Markowitz portfolio](http://en.wikipedia.org/wiki/Modern_portfolio_theory) or [Universal portfolio](http://en.wikipedia.org/wiki/Universal_portfolio_algorithm). Currently there is an active research in the are of online portfolios and even though its results are mostly theoretic, algorithms for practical use starts to appear.
+In short, the purpose of online portfolio is to _choose portfolio weights in every period to maximize its final wealth_. Examples of such portfolios could be [Markowitz portfolio](http://en.wikipedia.org/wiki/Modern_portfolio_theory) or [Universal portfolio](http://en.wikipedia.org/wiki/Universal_portfolio_algorithm). Currently there is an active research in the are of online portfolios and even though its results are mostly theoretic, algorithms for practical use starts to appear.
 
 Several algorithms from the literature are currently implemented, based on the available literature and my understanding. Contributions or corrections are more than welcomed.
 
@@ -16,18 +14,24 @@ The original authors of some of the algorithms recently published their own impl
 
 If you are more into R or just looking for a good resource about Universal Portfolios, check out blog and package [logopt](http://optimallog.blogspot.cz/) by Marc Delvaux.
 
-
 ## Installation
-
-
-#### Dependencies
-
-The usual scientific libraries: numpy, scipy, pandas, matplotlib and cvxopt. All of them should be included in [Anaconda](https://store.continuum.io/cshop/anaconda/).
-
-#### Installation
 
 ```
 pip install universal-portfolios
 ```
 
-`universal-portfolios` works under both python 2 and 3.
+## Development
+
+It uses poetry to manage dependencies. Run `poetry install` to install virtual environment and then `poetry shell` to launch it.
+
+Exporting dependencies to `requirements.txt` file is done via
+
+```
+poetry export --without-hashes -f requirements.txt > requirements.txt
+```
+
+## Tests
+
+```
+poetry run python -m pytest --capture=no --ff -x tests/ -k test_bias
+```

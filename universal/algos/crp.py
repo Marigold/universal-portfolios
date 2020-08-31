@@ -22,7 +22,7 @@ class CRP(Algo):
         self.b = b
 
 
-    def step(self, x, last_b):
+    def step(self, x, last_b, history):
         # init b to default if necessary
         if self.b is None:
             self.b = np.ones(len(x)) / len(x)

@@ -8,10 +8,7 @@ import copy
 from .result import AlgoResult, ListResult
 from scipy.special import comb
 from . import tools
-try:
-    from scipy.special import comb
-except ImportError:
-    from scipy.misc import comb
+from scipy.special import comb
 
 
 class Algo(object):
@@ -55,7 +52,7 @@ class Algo(object):
         """
         pass
 
-    def step(self, x, last_b, history):
+    def step(self, x, last_b, history=None):
         """ Calculate new portfolio weights. If history parameter is omited, step
         method gets passed just parameters `x` and `last_b`. This significantly
         increases performance.
@@ -65,11 +62,6 @@ class Algo(object):
             performance.
         """
         raise NotImplementedError('Subclass must implement this!')
-
-    def _use_history_step(self):
-        """ Use history parameter in step method? """
-        step_args = inspect.signature(self.step).parameters
-        return len(step_args) >= 4
 
     def weights(self, X, min_history=None, log_progress=True):
         """ Return weights. Call step method to update portfolio sequentially. Subclass
@@ -83,7 +75,7 @@ class Algo(object):
             last_b = pd.Series(last_b, X.columns)
 
         # use history in step method?
-        use_history = self._use_history_step()
+        use_history = True
 
         # run algo
         self.init_step(X)
@@ -100,11 +92,8 @@ class Algo(object):
                 continue
 
             # predict for t+1
-            if use_history:
-                history = X.iloc[:t+1]
-                last_b = self.step(x, last_b, history)
-            else:
-                last_b = self.step(x, last_b)
+            history = X.iloc[:t+1]
+            last_b = self.step(x, last_b, history)
 
             # convert last_b to suitable format if needed
             if type(last_b) == np.matrix:
