@@ -18,7 +18,7 @@ class MPT(Algo):
 
     PRICE_TYPE = 'ratio'
 
-    def __init__(self, mu_estimator=None, cov_estimator=None, cov_window=None,
+    def __init__(self, window=None, mu_estimator=None, cov_estimator=None, mu_window=None, cov_window=None,
                  min_history=None, bounds=None, max_leverage=1., method='mpt', q=0.01, gamma=0.,
                  optimizer_options=None, force_weights=None, **kwargs):
         """
@@ -34,10 +34,12 @@ class MPT(Algo):
         :param gamma: Penalize changing weights (can be number or Series with individual weights such as fees)
         """
         super().__init__(min_history=min_history, **kwargs)
+        mu_window = mu_window or window
+        cov_window = cov_window or window
         self.method = method
         self.q = q
         self.gamma = gamma
-        self.bounds = bounds
+        self.bounds = bounds or {}
         self.force_weights = force_weights
         self.max_leverage = max_leverage
         self.optimizer_options = optimizer_options or {}
@@ -72,7 +74,7 @@ class MPT(Algo):
 
         if isinstance(mu_estimator, string_types):
             if mu_estimator == 'historical':
-                mu_estimator = HistoricalEstimator(window=cov_window)
+                mu_estimator = HistoricalEstimator(window=mu_window)
             elif mu_estimator == 'sharpe':
                 mu_estimator = SharpeEstimator()
             else:

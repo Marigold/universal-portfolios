@@ -29,7 +29,6 @@ def mp_pool(n_jobs):
 
 def dataset(name):
     """ Return sample dataset from /data directory. """
-    mod = sys.modules[__name__]
     filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', name + '.pkl')
     return pd.read_pickle(filename)
 
@@ -584,10 +583,10 @@ def bootstrap_history(S, drop_fraction=0.1, size=None, random_state=None):
         size = int(len(R) * (1 - drop_fraction))
 
     ix = np.random.choice(R.index, size=size, replace=False)
-    R = R.ix[sorted(ix)]
+    R = R.loc[sorted(ix)]
 
     # reconstruct series
-    R.iloc[0] = S.ix[R.index[0]]
+    R.iloc[0] = S.loc[R.index[0]]
     return R.cumprod()
 
 
