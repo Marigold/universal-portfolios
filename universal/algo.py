@@ -280,8 +280,7 @@ class Algo(object):
         n_jobs = kwargs.pop('n_jobs', -1)
 
         # extract simple parameters
-        simple_params = {k: kwargs.pop(k) for k, v in kwargs.items()
-                         if not isinstance(v, list)}
+        simple_params = {k: kwargs.pop(k) for k in tuple(kwargs.keys()) if not isinstance(kwargs[k], list)}
 
         # iterate over all combinations
         names = []
@@ -290,7 +289,7 @@ class Algo(object):
             params = dict(zip(kwargs.keys(), seq))
 
             # run algo
-            all_params = dict(params.items() + simple_params.items())
+            all_params = dict(list(params.items()) + list(simple_params.items()))
             params_to_try.append(all_params)
 
             # create name with format param:value
