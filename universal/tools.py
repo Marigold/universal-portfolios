@@ -125,11 +125,14 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
     :freq: frequency for sharpe (default 252 for daily data)
     :no_cash: if True, we can't keep cash (that is sum of weights == max_leverage)
     """
-    assert metric in ('return', 'sharpe', 'drawdown')
+    assert metric in ('return', 'sharpe', 'drawdown', 'ulcer')
 
     x_0 = max_leverage * np.ones(X.shape[1]) / float(X.shape[1])
     if metric == 'return':
         objective = lambda b: -np.sum(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)))
+    elif metric == 'ulcer':
+        objective = lambda b: -ulcer(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
+                                      rf_rate=rf_rate, freq=freq)
     elif metric == 'sharpe':
         objective = lambda b: -sharpe(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
                                       rf_rate=rf_rate, alpha=alpha, freq=freq, sd_factor=sd_factor)
@@ -175,7 +178,7 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
     keep = ~(mu.isnull() | (np.diag(sigma) < 0.00000001))
 
     mu = mu[keep]
-    sigma = sigma.ix[keep, keep]
+    sigma = sigma.loc[keep, keep]
 
     m = len(mu)
 
@@ -207,7 +210,7 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
                 sol = solvers.qp(P, q, G, h)
             else:
                 A = matrix(np.ones(n)).T
-                b = matrix(np.array([max_leverage]))
+                b = matrix(np.array([float(max_leverage)]))
                 sol = solvers.qp(P, q, G, h, A, b)
 
             return np.squeeze(sol['x'])
@@ -367,6 +370,38 @@ def mu_std(R, rf_rate=None, freq=None):
     })
 
 
+def _sub_rf(r, rf):
+    if isinstance(rf, float):
+        r -= rf
+    elif len(r.shape) == 1:
+        r -= rf.values
+    else:
+        r = r.sub(rf, 0)
+    return r
+
+
+def ulcer(r, rf_rate=0., freq=None):
+    """Compute Ulcer ratio."""
+    freq = freq or _freq(r.index)
+    rf = rf_rate / freq
+
+    # subtract risk-free rate
+    r = _sub_rf(r, rf)
+
+    # annualized excess return
+    mu = r.mean() * freq
+
+    # ulcer index
+    x = (1 + r).cumprod()
+
+    if isinstance(x, pd.Series):
+        drawdown = 1 - x / x.cummax()
+    else:
+        drawdown = 1 - x / np.maximum.accumulate(x)
+
+    return mu / np.sqrt((drawdown**2).mean())
+
+
 def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1., w=None):
     """ Compute annualized sharpe ratio from returns. If data does
         not contain datetime index, assume daily frequency with 252 trading days a year
@@ -379,7 +414,7 @@ def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1., w=None):
     rf = rf_rate / freq
 
     # subtract risk-free rate
-    r = r.sub(rf, 0)
+    r = _sub_rf(r, rf)
 
     # annualize return and sd
     if w is None:
@@ -596,3 +631,14 @@ def tradable_etfs():
         'ZIV', 'EEM', 'UGLD', 'FAS', 'UDOW', 'UMDD', 'URTY', 'TNA', 'ERX', 'BIB', 'UYG', 'RING', 'LABU', 'XLE', 'XLF', 'IBB',
         'FXI', 'XBI', 'XSD', 'GOOGL', 'AAPL', 'VNQ', 'DRN', 'O', 'IEF', 'GBTC', 'KBWY', 'KBWR', 'DPST', 'YINN', 'FHK', 'XOP',
         'GREK', 'SIL', 'JPNL', 'KRE', 'IAT', 'SOXL', 'RETL', 'VIXM', 'QABA', 'KBE', 'USDU', 'UUP', 'TYD']
+
+
+def same_vol(S):
+    R = S.pct_change().drop('RFR', axis=1)
+    rfr = S['RFR']
+    vol = R.std()
+    leverage = vol.mean() / vol
+    R = (leverage * (R.sub(rfr / 252, axis=0))).add(rfr / 252, axis=0)
+    S = (1 + R.fillna(0)).cumprod()
+    S['RFR'] = rfr
+    return S

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import hashlib
 import matplotlib.pyplot as plt
 import pickle
 from universal import tools
@@ -182,6 +183,10 @@ class AlgoResult(PickleMixin):
         return alpha_std
 
     @property
+    def ulcer(self):
+        return tools.ulcer(self.r - 1, rf_rate=self.rf_rate, freq=self.freq())
+
+    @property
     def information(self):
         """ Information ratio benchmarked against uniform CRP portfolio. """
         x = self.r - self.ucrp_r
@@ -253,13 +258,15 @@ class AlgoResult(PickleMixin):
         X = self.X
 
         # equity increase
-        E = (B.shift(1) * X).sum(axis=1)
+        E = (B * (X - 1)).sum(axis=1) + 1
 
-        # change in weights
-        D = (B.multiply(E, axis=0) - B.shift(1) * X).abs()
-        return D.sum().sum() * self.freq() / len(B)
+        # required new assets
+        R = B.shift(-1).multiply(E, axis=0) / X
 
-        # return self.B.diff().abs().sum().sum() * self.freq() / len(self.B)
+        D = R - B
+
+        # rebalancing
+        return D.abs().sum().sum() / (len(B) / self.freq())
 
     def freq(self, x=None):
         """ Number of data items per year. If data does not contain
@@ -297,6 +304,7 @@ class AlgoResult(PickleMixin):
         return f"""Summary{'' if name is None else ' for ' + name}:
     Profit factor: {self.profit_factor:.2f}
     Sharpe ratio: {self.sharpe:.2f} ± {self.sharpe_std:.2f}
+    Ulcer index: {self.ulcer:.2f}
     Information ratio (wrt UCRP): {self.information:.2f}
     Appraisal ratio (wrt UCRP): {self.appraisal:.2f} ± {self.appraisal_std:.2f}
     UCRP sharpe: {self.ucrp_sharpe:.2f} ± {self.ucrp_sharpe_std:.2f}
@@ -306,7 +314,7 @@ class AlgoResult(PickleMixin):
     Longest drawdown: {self.drawdown_period:.0f} days
     Max drawdown: {self.max_drawdown:.2%}
     Winning days: {self.winning_pct:.1%}
-    Turnover: {self.turnover:.1f}
+    Annual turnover: {self.turnover:.1f}
         """
 
     def plot(self, weights=True, assets=True, portfolio_label='PORTFOLIO', show_only_important=True, **kwargs):
@@ -336,8 +344,9 @@ class AlgoResult(PickleMixin):
 
             # plot weights as lines
             if B.drop(['CASH'], 1, errors='ignore').values.min() < -0.01:
-                B.sort_index(axis=1).plot(ax=ax2, ylim=(min(0., B.values.min()), max(1., B.values.max())),
-                                          legend=False, color=_colors(len(assets) + 1))
+                B = B.sort_index(axis=1)
+                B.plot(ax=ax2, ylim=(min(0., B.values.min()), max(1., B.values.max())),
+                                          legend=False, color=_colors_hash(B.columns))
             else:
                 B = B.drop('CASH', 1, errors='ignore')
                 # fix rounding errors near zero
@@ -345,8 +354,8 @@ class AlgoResult(PickleMixin):
                     pB = B - B.values.min()
                 else:
                     pB = B
-                pB.sort_index(axis=1).plot(ax=ax2, ylim=(0., max(1., pB.sum(1).max())),
-                                           legend=False, color=_colors(len(assets) + 1), kind='area', stacked=True)
+                pB.plot(ax=ax2, ylim=(0., max(1., pB.sum(1).max())),
+                                           legend=False, color=_colors_hash(pB.columns), kind='area', stacked=True)
             plt.ylabel('weights')
             return [ax1, ax2]
 
@@ -437,8 +446,23 @@ class ListResult(list, PickleMixin):
         # NOTE: order of plotting is important because of coloring
         # plot portfolio
         d = self.to_dataframe()
-        portfolio = d.copy()
-        ax = portfolio.plot(linewidth=3., legend=False, **kwargs)
+        D = d.copy()
+
+        # add individual assets
+        if isinstance(assets, bool):
+            if assets:
+                assets = self[0].asset_equity.columns
+            else:
+                assets = []
+
+        if list(assets):
+            D = D.join(self[0].asset_equity)
+
+        # import ipdb; ipdb.set_trace()
+        ax = D.plot(color=_colors_hash(D.columns), **kwargs)
+        D.PORTFOLIO.plot(lw=3., color='blue', **kwargs)
+
+        # ax = portfolio.plot(linewidth=3., legend=False, **kwargs)
         kwargs['ax'] = ax
 
         ax.set_ylabel('Total wealth')
@@ -464,22 +488,15 @@ class ListResult(list, PickleMixin):
             d['BAH'] = bah_algo.equity
             d[['BAH']].plot(**kwargs)
 
-        # add individual assets
-        if isinstance(assets, bool):
-            if assets:
-                assets = self[0].asset_equity.columns
-            else:
-                assets = []
-
-        if list(assets):
-            self[0].asset_equity.sort_index(axis=1).plot(color=_colors(len(assets) + 1), **kwargs)
-
-        # plot portfolio again to highlight it
-        kwargs['color'] = 'blue'
-        portfolio.plot(linewidth=3., **kwargs)
-
         return ax
 
 
 def _colors(n):
     return sns.color_palette(n_colors=n)
+
+def _hash(s):
+    return int(hashlib.sha1(s.encode()).hexdigest(), 16)
+
+def _colors_hash(columns, n=19):
+    palette = sns.color_palette(n_colors=n)
+    return ['blue' if c == 'PORTFOLIO' else palette[_hash(c) % n] for c in columns]

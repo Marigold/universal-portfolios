@@ -25,7 +25,7 @@ class BAH(Algo):
             b = self.b
 
         # weights are proportional to price times initial weights
-        w = S * b
+        w = S.shift(1) * b
 
         # normalize
         w = w.div(w.sum(axis=1), axis=0)

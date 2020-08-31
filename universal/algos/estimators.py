@@ -1,5 +1,6 @@
 from sklearn.covariance import EmpiricalCovariance
 from sklearn.base import BaseEstimator
+import datetime
 import numpy as np
 import pandas as pd
 from .. import tools
@@ -122,7 +123,8 @@ class CovarianceEstimator(object):
 
 class SharpeEstimator(object):
 
-    def __init__(self, global_sharpe=0.4, override_sharpe=None, override_mean=None, capm=None, rfr=0., verbose=False, cov_estimator=None):
+    def __init__(self, global_sharpe=0.4, override_sharpe=None, override_mean=None, capm=None, rfr=0., verbose=False, cov_estimator=None,
+            tax_adjustment=None):
         """
         :param rfr: risk-free rate
         """
@@ -133,6 +135,7 @@ class SharpeEstimator(object):
         self.rfr = rfr
         self.verbose = verbose
         self.cov_estimator = cov_estimator
+        self.tax_adjustment = tax_adjustment
 
     def fit(self, X, sigma):
         """
@@ -165,13 +168,24 @@ class SharpeEstimator(object):
         if 'CASH' in X.columns:
             mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
 
-        for asset, markets in self.capm.items():
-            mu[asset] = self._capm_mu(asset, markets, mu, sigma, X)
+        for asset, item in self.capm.items():
+            if isinstance(item, list):
+                markets = item
+                alpha = 0.
+            elif isinstance(item, dict):
+                markets = item['market']
+                alpha = item['alpha']
+
+            if asset in X.columns:
+                mu[asset] = self._capm_mu(asset, markets, mu, sigma, X) + alpha
 
         if self.override_mean:
             for k, v in self.override_mean.items():
                 if k in mu.index:
                     mu.loc[k] = v
+
+        if self.tax_adjustment:
+            mu = self.tax_adjustment.fit(mu, sigma)
 
         if self.verbose:
             print(pd.DataFrame({
@@ -483,6 +497,47 @@ class ExponentiallyWeightedCovariance(BaseEstimator):
         C = Xv.T @ Xv / w[:, 0].sum()
         self.covariance_ = C
         return self
+
+
+class TaxAdjustment:
+    """ Adjust mean return for taxes. It should be 1. if we are at loss and 0.85 if we are in super profit. Anything
+    in between will produce way smaller factor around 0.5"""
+
+    def __init__(self, market_value, profit, tax=0.15):
+        assert market_value.notnull().all()
+        self.market_value = market_value
+        self.profit = profit
+        self.tax = tax
+
+    def fit(self, mu, sigma):
+        b = self.market_value
+        profit = self.profit
+
+        # only pick selected assets
+        m = mu.loc[b.index]
+        sigma = sigma.loc[b.index, b.index]
+
+        # scale sigma to the end of the year
+        days_until_year_end = (datetime.date(datetime.date.today().year + 1, 1, 1) - datetime.date.today()).days
+        sigma = sigma * days_until_year_end / 365
+
+        # calculate tax factor
+        # TODO: this must be normalized until the end of year
+        x = np.random.multivariate_normal(m, sigma, size=100000)
+        r = x @ b
+
+        factor = ((r + profit > 0) * (1 - self.tax) + (r + profit < 0))
+        tr = x.T * factor
+
+        m = mu.copy()
+        m.update(pd.Series(tr.mean(axis=1), index=b.index))
+        # f = (tr.mean() - np.minimum(profit, profit * (1 - self.tax))) / r.mean()
+        print(f'Tax loss: {(m / mu).loc[b.index].round(2)}')
+
+        # adjust mean returns and update original mean
+        # mu = mu.copy()
+        # mu.update(m * f)
+        return m
 
 
 class JPMEstimator(object):
