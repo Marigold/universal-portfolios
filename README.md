@@ -28,7 +28,10 @@ Exporting dependencies to `requirements.txt` file is done via
 
 ```
 poetry export --without-hashes -f requirements.txt > requirements.txt
+poetry export --dev --without-hashes -f requirements.txt > test-requirements.txt
 ```
+
+this is needed for mybinder.org.
 
 ## Tests
 

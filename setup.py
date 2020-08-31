@@ -11,6 +11,7 @@ version='0.4.0'
 install_reqs = parse_requirements('requirements.txt')
 
 setup(name='universal-portfolios',
+      python_requires='>=3.7.0',
       version=version,
       description='Collection of algorithms for online portfolio selection',
       url='https://github.com/Marigold/universal-portfolios',

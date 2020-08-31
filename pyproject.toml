@@ -3,9 +3,12 @@ name = "universal-portfolios"
 version = "0.4.0"
 description = ""
 authors = ["Marigold <mojmir.vinkler@gmail.com>"]
+packages = [
+    { include = "universal" },
+]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 pandas = "^1.1.1"
 cvxopt = "^1.2.5"
 scipy = "^1.5.2"
