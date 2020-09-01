@@ -105,7 +105,7 @@ class AlgoResult(PickleMixin):
         # add fees
         if not isinstance(self._fee, float) or self._fee != 0:
             fees = (self.B.shift(-1).mul(self.r, axis=0) - self.B * self.X).abs()
-            fees.iloc[0] = self.B.ix[0]
+            fees.iloc[0] = self.B.iloc[0]
             fees.iloc[-1] = 0.
             fees *= self._fee
 
@@ -458,11 +458,7 @@ class ListResult(list, PickleMixin):
         if list(assets):
             D = D.join(self[0].asset_equity)
 
-        # import ipdb; ipdb.set_trace()
         ax = D.plot(color=_colors_hash(D.columns), **kwargs)
-        D.PORTFOLIO.plot(lw=3., color='blue', **kwargs)
-
-        # ax = portfolio.plot(linewidth=3., legend=False, **kwargs)
         kwargs['ax'] = ax
 
         ax.set_ylabel('Total wealth')

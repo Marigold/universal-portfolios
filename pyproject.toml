@@ -9,7 +9,6 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.7"
-pandas = "^1.1.1"
 cvxopt = "^1.2.5"
 scipy = "^1.5.2"
 matplotlib = "^3.3.1"
@@ -19,6 +18,7 @@ scikit-learn = "^0.23.2"
 seaborn = "^0.10.1"
 requests = "^2.24.0"
 plotly = "^4.9.0"
+pandas = "^1.1.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.0.1"

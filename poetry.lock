@@ -444,7 +444,7 @@ wcwidth = "*"
 [[package]]
 category = "dev"
 description = "Run a subprocess in a pseudo terminal"
-marker = "python_version >= \"3.4\" and sys_platform != \"win32\" or sys_platform != \"win32\""
+marker = "python_version >= \"3.4\" and sys_platform != \"win32\" or sys_platform != \"win32\" or python_version >= \"3.4\" and sys_platform != \"win32\" and (python_version >= \"3.4\" and sys_platform != \"win32\" or sys_platform != \"win32\")"
 name = "ptyprocess"
 optional = false
 python-versions = "*"

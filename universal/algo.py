@@ -164,15 +164,11 @@ class Algo(object):
 
     def next_weights(self, S, last_b, **kwargs):
         """ Calculate weights for next day. """
-        # use history in step method?
-        use_history = self._use_history_step()
         history = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
         x = history.iloc[-1]
 
-        if use_history:
-            b = self.step(x, last_b, history, **kwargs)
-        else:
-            b = self.step(x, last_b, **kwargs)
+        b = self.step(x, last_b, history, **kwargs)
+
         return pd.Series(b, index=S.columns)
 
     def run_subsets(self, S, r, generator=False):
@@ -217,7 +213,7 @@ class Algo(object):
         if method == 'raw':
             # normalize prices so that they start with 1.
             r = {}
-            for name, s in S.iteritems():
+            for name, s in S.items():
                 init_val = s.loc[s.first_valid_index()]
                 r[name] = s / init_val
             X = pd.DataFrame(r)

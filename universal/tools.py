@@ -29,8 +29,8 @@ def mp_pool(n_jobs):
 
 def dataset(name):
     """ Return sample dataset from /data directory. """
-    filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', name + '.pkl')
-    return pd.read_pickle(filename)
+    filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', name + '.csv')
+    return pd.read_csv(filename)
 
 
 def profile(algo, data=None, to_profile=[]):
