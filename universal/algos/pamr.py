@@ -45,11 +45,12 @@ class PAMR(Algo):
         self.variant = variant
 
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
+        m = len(columns)
         return np.ones(m) / m
 
 
-    def step(self, x, last_b):
+    def step(self, x, last_b, history):
         # calculate return prediction
         b = self.update(last_b, x, self.eps, self.C)
         return b

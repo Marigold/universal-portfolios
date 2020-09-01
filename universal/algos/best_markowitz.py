@@ -1,6 +1,7 @@
 from ..algos import CRP
 from .. import tools
 import numpy as np
+import pandas as pd
 
 
 class BestMarkowitz(CRP):
@@ -10,10 +11,11 @@ class BestMarkowitz(CRP):
         https://en.wikipedia.org/wiki/Modern_portfolio_theory
     """
 
-    PRICE_TYPE = 'log'
+    PRICE_TYPE = 'ratio'
     REPLACE_MISSING = False
 
-    def __init__(self, **kwargs):
+    def __init__(self, global_sharpe=None, **kwargs):
+        self.global_sharpe = global_sharpe
         self.opt_markowitz_kwargs = kwargs
 
     def weights(self, X):
@@ -22,8 +24,12 @@ class BestMarkowitz(CRP):
         freq = tools.freq(X.index)
 
         # calculate mean and covariance matrix and annualize them
-        mu = X.mean() * freq
         sigma = X.cov() * freq
+
+        if self.global_sharpe:
+            mu = pd.Series(np.sqrt(np.diag(sigma)) * self.global_sharpe, X.columns)
+        else:
+            mu = X.mean() * freq
 
         self.b = tools.opt_markowitz(mu, sigma, **self.opt_markowitz_kwargs)
 

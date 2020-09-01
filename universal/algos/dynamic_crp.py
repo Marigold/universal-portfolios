@@ -17,7 +17,8 @@ class DynamicCRP(Algo):
                 min_history = n
         super(DynamicCRP, self).__init__(min_history=min_history)
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
+        m = len(columns)
         self._importances = np.zeros(m)
 
         # use uniform weights until you get enough history

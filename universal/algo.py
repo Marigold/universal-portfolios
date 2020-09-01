@@ -6,11 +6,9 @@ import logging
 import inspect
 import copy
 from .result import AlgoResult, ListResult
+from scipy.special import comb
 from . import tools
-try:
-    from scipy.special import comb
-except ImportError:
-    from scipy.misc import comb
+from scipy.special import comb
 
 
 class Algo(object):
@@ -42,11 +40,11 @@ class Algo(object):
         self.min_history = min_history or 0
         self.frequency = frequency
 
-    def init_weights(self, m):
+    def init_weights(self, columns):
         """ Set initial weights.
         :param m: Number of assets.
         """
-        return np.zeros(m)
+        return np.zeros(len(columns))
 
     def init_step(self, X):
         """ Called before step method. Use to initialize persistent variables.
@@ -54,7 +52,7 @@ class Algo(object):
         """
         pass
 
-    def step(self, x, last_b, history):
+    def step(self, x, last_b, history=None):
         """ Calculate new portfolio weights. If history parameter is omited, step
         method gets passed just parameters `x` and `last_b`. This significantly
         increases performance.
@@ -65,11 +63,6 @@ class Algo(object):
         """
         raise NotImplementedError('Subclass must implement this!')
 
-    def _use_history_step(self):
-        """ Use history parameter in step method? """
-        step_args = inspect.getargspec(self.step)[0]
-        return len(step_args) >= 4
-
     def weights(self, X, min_history=None, log_progress=True):
         """ Return weights. Call step method to update portfolio sequentially. Subclass
         this method only at your own risk. """
@@ -77,18 +70,18 @@ class Algo(object):
 
         # init
         B = X.copy() * 0.
-        last_b = self.init_weights(X.shape[1])
+        last_b = self.init_weights(X.columns)
         if isinstance(last_b, np.ndarray):
             last_b = pd.Series(last_b, X.columns)
 
         # use history in step method?
-        use_history = self._use_history_step()
+        use_history = True
 
         # run algo
         self.init_step(X)
         for t, (_, x) in enumerate(X.iterrows()):
             # save weights
-            B.ix[t] = last_b
+            B.iloc[t] = last_b
 
             # keep initial weights for min_history
             if t < min_history:
@@ -99,11 +92,8 @@ class Algo(object):
                 continue
 
             # predict for t+1
-            if use_history:
-                history = X.iloc[:t+1]
-                last_b = self.step(x, last_b, history)
-            else:
-                last_b = self.step(x, last_b)
+            history = X.iloc[:t+1]
+            last_b = self.step(x, last_b, history)
 
             # convert last_b to suitable format if needed
             if type(last_b) == np.matrix:
@@ -120,7 +110,7 @@ class Algo(object):
         """ Split index into chunks so that each chunk except of the last has length
         divisible by freq. """
         chunksize = int(len(ix) / freq / nr_chunks + 1) * freq
-        return [ix[i*chunksize:(i+1)*chunksize] for i in range(len(ix) / chunksize + 1)]
+        return [ix[i*chunksize:(i+1)*chunksize] for i in range(int(len(ix) / chunksize + 1))]
 
     def run(self, S, n_jobs=1, log_progress=True):
         """ Run algorithm and get weights.
@@ -149,13 +139,13 @@ class Algo(object):
         else:
             with tools.mp_pool(n_jobs) as pool:
                 ix_blocks = self._split_index(X.index, pool._processes * 2, self.frequency)
-                min_histories = np.maximum(np.cumsum([0] + map(len, ix_blocks[:-1])) - 1, self.min_history)
+                min_histories = np.maximum(np.cumsum([0] + list(map(len, ix_blocks[:-1]))) - 1, self.min_history)
 
-                B_blocks = pool.map(_parallel_weights, [(self, X.ix[:ix_block[-1]], min_history, log_progress)
+                B_blocks = pool.map(_parallel_weights, [(self, X.loc[:ix_block[-1]], min_history, log_progress)
                                     for ix_block, min_history in zip(ix_blocks, min_histories)])
 
             # join weights to one dataframe
-            B = pd.concat([B_blocks[i].ix[ix] for i, ix in enumerate(ix_blocks)])
+            B = pd.concat([B_blocks[i].loc[ix] for i, ix in enumerate(ix_blocks)])
 
         # cast to dataframe if weights return numpy array
         if not isinstance(B, pd.DataFrame):
@@ -174,15 +164,11 @@ class Algo(object):
 
     def next_weights(self, S, last_b, **kwargs):
         """ Calculate weights for next day. """
-        # use history in step method?
-        use_history = self._use_history_step()
         history = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
         x = history.iloc[-1]
 
-        if use_history:
-            b = self.step(x, last_b, history, **kwargs)
-        else:
-            b = self.step(x, last_b, **kwargs)
+        b = self.step(x, last_b, history, **kwargs)
+
         return pd.Series(b, index=S.columns)
 
     def run_subsets(self, S, r, generator=False):
@@ -227,13 +213,13 @@ class Algo(object):
         if method == 'raw':
             # normalize prices so that they start with 1.
             r = {}
-            for name, s in S.iteritems():
-                init_val = s.ix[s.first_valid_index()]
+            for name, s in S.items():
+                init_val = s.loc[s.first_valid_index()]
                 r[name] = s / init_val
             X = pd.DataFrame(r)
 
             if replace_missing:
-                X.ix[0] = 1.
+                X.iloc[0] = 1.
                 X = X.fillna(method='ffill')
 
             return X

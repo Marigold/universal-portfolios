@@ -18,11 +18,11 @@ class CRP(Algo):
         """
         :params b: Constant rebalanced portfolio weights. Default is uniform.
         """
-        super(CRP, self).__init__()
+        super().__init__()
         self.b = b
 
 
-    def step(self, x, last_b):
+    def step(self, x, last_b, history):
         # init b to default if necessary
         if self.b is None:
             self.b = np.ones(len(x)) / len(x)
@@ -31,9 +31,14 @@ class CRP(Algo):
 
     def weights(self, X):
         if self.b is None:
-            return np.ones(X.shape) / X.shape[1]
-        else:
+            b = X * 0 + 1
+            b.loc[:, 'CASH'] = 0
+            b = b.div(b.sum(axis=1), axis=0)
+            return b
+        elif self.b.ndim == 1:
             return np.repeat([self.b], X.shape[0], axis=0)
+        else:
+            return self.b
 
 
     @classmethod

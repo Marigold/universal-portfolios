@@ -1,5 +1,6 @@
 from sklearn.covariance import EmpiricalCovariance
 from sklearn.base import BaseEstimator
+import datetime
 import numpy as np
 import pandas as pd
 from .. import tools
@@ -7,7 +8,10 @@ from sklearn.decomposition import PCA
 from numpy.linalg import inv
 from scipy.linalg import sqrtm
 from sklearn import covariance
+from statsmodels.api import OLS
+from statsmodels.tools import add_constant
 import logging
+import plotly.graph_objs as go
 
 
 # expenses + tax dividend
@@ -40,29 +44,117 @@ EXPENSES = {
     'TLT': 0.0015,
     'ZIV': 0.0135,
     'GLD': 0.004,
+    'BABA': 0.,
+    'BIDU': 0.,
+    'IEF': 0.0015,
+    'KWEB': 0.007,
+    'JPNL': 0.0121,
+    'EDC': 0.0148,
+    'EEMV': 0.0025,
+    'USMV': 0.0015,
+    'ACWV': 0.002,
+    'EFAV': 0.002,
+    'KRE': 0.0035,
+    'EEM': 0.0068,
+    'ZN': 0.,
+    'RFR': 0.,
 }
+
+
+class CovarianceEstimator(object):
+    """ Estimator which accepts sklearn objects. """
+
+    def __init__(self, cov_est, window, standardize=True):
+        self.cov_est = cov_est
+        self.window = window
+        self.standardize = standardize
+
+    def fit(self, X):
+        assert X.mean().mean() < 1.
+
+        # exclude CASH from covariance
+        if 'CASH' in X:
+            cov = self.fit(X.drop('CASH', axis=1))
+            cov = cov.reindex(X.columns, fill_value=0, axis=0).reindex(X.columns, fill_value=0, axis=1)
+            return cov
+
+        # only use last window
+        if self.window:
+            X = X.iloc[-self.window:]
+
+        # remove zero-variance elements
+        zero_variance = X.std() == 0
+        Y = X.iloc[:, ~zero_variance.values]
+
+        # most estimators assume isotropic covariance matrix, so standardize before feeding them
+        std = Y.std()
+        Y = Y / std
+
+        # can estimator handle NaN values?
+        if getattr(self.cov_est, 'allow_nan', False):
+            self.cov_est.fit(Y)
+            cov = pd.DataFrame(self.cov_est.covariance_, index=Y.columns, columns=Y.columns)
+        else:
+            # estimation for matrix without NaN values - should be larger than min_history
+            cov = self.cov_est.fit(Y).covariance_
+            cov = pd.DataFrame(cov, index=Y.columns, columns=Y.columns)
+
+            # NOTE: nonsense - we wouldn't get positive-semidefinite matrix
+            # improve estimation for those with full history
+            # Y = Y.dropna(1, how='any')
+            # full_cov = self.cov_est.fit(Y).covariance_
+            # full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
+            # cov.update(full_cov)
+
+        # standardize back
+        cov = np.outer(std, std) * cov
+
+        # put back zero covariance
+        cov = cov.reindex(X.columns).reindex(columns=X.columns).fillna(0.)
+
+        # turn on?
+        # assert np.linalg.eig(cov)[0].min() > 0
+
+        # annualize covariance
+        cov *= tools.freq(X.index)
+
+        return cov
 
 
 class SharpeEstimator(object):
 
-    def __init__(self, global_sharpe=0.4, override_sharpe=None, rfr=0., verbose=False):
+    def __init__(self, global_sharpe=0.4, override_sharpe=None, override_mean=None, capm=None, rfr=0., verbose=False, cov_estimator=None,
+            tax_adjustment=None):
         """
         :param rfr: risk-free rate
         """
         self.override_sharpe = override_sharpe or {}
+        self.override_mean = override_mean or {}
+        self.capm = capm or {}
         self.global_sharpe = global_sharpe
         self.rfr = rfr
         self.verbose = verbose
+        self.cov_estimator = cov_estimator
+        self.tax_adjustment = tax_adjustment
 
     def fit(self, X, sigma):
         """
         formula for mean is:
             sh * vol + rf - expenses
         """
+        # estimate sigma again if cov_estimator is present
+        if self.cov_estimator is not None:
+            sigma = self.cov_estimator.fit(X - 1)
+
         est_sh = pd.Series(self.global_sharpe, index=sigma.index)
         for k, v in self.override_sharpe.items():
             if k in est_sh:
                 est_sh[k] = v
+
+        if isinstance(self.rfr, pd.Series):
+            rfr = self.rfr.loc[X.index[-1]]
+        else:
+            rfr = self.rfr
 
         # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
         vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
@@ -70,7 +162,30 @@ class SharpeEstimator(object):
         if missing_expenses:
             logging.warning('Missing ETF expense for {}'.format(missing_expenses))
         expenses = pd.Series([EXPENSES.get(c, 0.005) for c in sigma.index], index=sigma.index)
-        mu = est_sh * vol + self.rfr - expenses
+        mu = est_sh * vol + rfr - expenses
+
+        # adjust CASH - note that CASH has -1.5% fee from IB
+        if 'CASH' in X.columns:
+            mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
+
+        for asset, item in self.capm.items():
+            if isinstance(item, list):
+                markets = item
+                alpha = 0.
+            elif isinstance(item, dict):
+                markets = item['market']
+                alpha = item['alpha']
+
+            if asset in X.columns:
+                mu[asset] = self._capm_mu(asset, markets, mu, sigma, X) + alpha
+
+        if self.override_mean:
+            for k, v in self.override_mean.items():
+                if k in mu.index:
+                    mu.loc[k] = v
+
+        if self.tax_adjustment:
+            mu = self.tax_adjustment.fit(mu, sigma)
 
         if self.verbose:
             print(pd.DataFrame({
@@ -78,11 +193,33 @@ class SharpeEstimator(object):
                 'mean': mu,
             }))
 
-        # adjust CASH
-        if 'CASH' in X.columns:
-            mu['CASH'] = X.CASH[-1]**(tools.freq(X.index)) - 1
-
         return mu
+
+    def _capm_mu(self, asset, markets, mu, sigma, X):
+        """Calculate mean estimated by CAPM."""
+        freq = tools.freq(X.index)
+        X = X[[asset] + markets].dropna()
+        res = OLS(X[asset] - 1 - self.rfr / freq, add_constant(X[markets] - 1 - self.rfr / freq)).fit()
+
+        beta = res.params.drop(['const'])
+
+        prev_mu = mu[asset]
+        new_mu = self.rfr + (mu[markets] - self.rfr).dot(beta)
+
+        alpha = res.params.const * freq
+        alpha_std = freq * np.sqrt(res.cov_params().loc['const', 'const'])
+
+        if self.verbose:
+            print(f'Beta of {[x for x in beta.round(2)]} changed {asset} mean return from {prev_mu:.1%} to {new_mu:.1%} with alpha {alpha:.2%} ({alpha_std:.2%})')
+
+        # be benevolent and add alpha if it is positive
+        # k = 0.2 was fine tuned on DPST in order to get it out of the portfolio
+        k = 0.2
+        if alpha - k * alpha_std > 0 and asset in ('KRE', 'DPST'):
+            if self.verbose:
+                print(f'   Adding alpha of {alpha - k * alpha_std:.2%} for {asset}')
+            new_mu += alpha - k * alpha_std
+        return new_mu
 
 
 class MuVarianceEstimator(object):
@@ -99,7 +236,6 @@ class HistoricalEstimator(object):
         self.window = window
 
     def fit(self, X, sigma):
-        # assume that all assets have yearly sharpe ratio 1 and deduce return from volatility
         if self.window:
             X = X.iloc[-self.window:]
 
@@ -223,6 +359,8 @@ class SingleIndexCovariance(BaseEstimator):
     It combines sample covariance matrix with covariance matrix from single-index model and
     automatically estimates shrinking parameter alpha.
     Assumes that first column represents index.
+
+    Note that Ledoit-Wolf is already implemented in scikit-learn.
     """
 
     def __init__(self, alpha=None):
@@ -343,3 +481,265 @@ class FractionalCovariance(covariance.OAS):
         logY = np.log(Y)
         fracY = ar(logY, self.frac)
         return super().fit(fracY)
+
+
+class ExponentiallyWeightedCovariance(BaseEstimator):
+
+    def __init__(self, span):
+        self.span = span
+
+    def fit(self, X):
+        alpha = 2 / (self.span + 1)
+        w = (1 - alpha)**np.arange(len(X))[::-1]
+        w = np.tile(w, (X.shape[1], 1)).T
+
+        Xv = X.values * w
+        C = Xv.T @ Xv / w[:, 0].sum()
+        self.covariance_ = C
+        return self
+
+
+class TaxAdjustment:
+    """ Adjust mean return for taxes. It should be 1. if we are at loss and 0.85 if we are in super profit. Anything
+    in between will produce way smaller factor around 0.5"""
+
+    def __init__(self, market_value, profit, tax=0.15):
+        assert market_value.notnull().all()
+        self.market_value = market_value
+        self.profit = profit
+        self.tax = tax
+
+    def fit(self, mu, sigma):
+        b = self.market_value
+        profit = self.profit
+
+        # only pick selected assets
+        m = mu.loc[b.index]
+        sigma = sigma.loc[b.index, b.index]
+
+        # scale sigma to the end of the year
+        days_until_year_end = (datetime.date(datetime.date.today().year + 1, 1, 1) - datetime.date.today()).days
+        sigma = sigma * days_until_year_end / 365
+
+        # calculate tax factor
+        # TODO: this must be normalized until the end of year
+        x = np.random.multivariate_normal(m, sigma, size=100000)
+        r = x @ b
+
+        factor = ((r + profit > 0) * (1 - self.tax) + (r + profit < 0))
+        tr = x.T * factor
+
+        m = mu.copy()
+        m.update(pd.Series(tr.mean(axis=1), index=b.index))
+        # f = (tr.mean() - np.minimum(profit, profit * (1 - self.tax))) / r.mean()
+        print(f'Tax loss: {(m / mu).loc[b.index].round(2)}')
+
+        # adjust mean returns and update original mean
+        # mu = mu.copy()
+        # mu.update(m * f)
+        return m
+
+
+class JPMEstimator(object):
+
+    def __init__(self, year=2020, rfr=0., verbose=False):
+        self.rfr = rfr
+        self.verbose = verbose
+        self.year = year
+        self.col_ret = f'Arithmetic Return {year}'
+
+    def _parse_jpm(self):
+        # load excel
+        df = pd.read_excel(f'data/jpm-matrix-usd-{self.year}.xlsx', skiprows=7)
+        df.columns = ['class', 'asset', f'Compound Return {self.year}', self.col_ret, 'Annualized Volatility', f'Compound Return {self.year - 1}'] + list(df.columns[6:])
+        df['class'] = df['class'].fillna(method='ffill')
+
+        # correlation matrix
+        corr = df.iloc[:, 6:]
+        corr.index = df.asset
+        corr.columns = df.asset
+        corr = corr.fillna(corr.T)
+
+        # returns matrix
+        rets = df.iloc[:, 1:6].set_index('asset')
+        rets = rets.replace({'-': None}).astype(float) / 100
+
+        # fix names
+        rets.index = [c.replace('\xa0', ' ') for c in rets.index]
+        corr.index = [c.replace('\xa0', ' ') for c in corr.index]
+        corr.columns = [c.replace('\xa0', ' ') for c in corr.columns]
+
+        rets['Sharpe'] = (rets[self.col_ret] - rets.loc['U.S. Cash', self.col_ret]) / rets['Annualized Volatility']
+
+        return rets, corr
+
+    def jpm_map(self):
+        jpm = {}
+        for k, syms in JPM_MAP.items():
+            jpm[k] = k
+            for sym in syms:
+                jpm[sym] = k
+        return jpm
+
+    def simulate(self, S):
+        # simulate assets from JPM
+        rets, corr = self._parse_jpm()
+
+        freq = tools.freq(S.index)
+        mean = rets[self.col_ret] / freq
+        vols = rets['Annualized Volatility'] / np.sqrt(freq)
+        cov = corr * np.outer(vols, vols)
+        Y = np.random.multivariate_normal(mean, cov, size=len(S))
+
+        Y = pd.DataFrame(1 + Y, columns=mean.index, index=S.index).cumprod()
+
+        # all values should end with 1
+        return Y / Y.iloc[-1]
+
+    def plot(self):
+        rets, corr = self._parse_jpm()
+        layout = go.Layout(
+            yaxis={'range': [0, rets[self.col_ret].max() * 1.1]},
+            hovermode='closest',
+            height=800,
+            width=800,
+        )
+        rets.iplot(kind='scatter', mode='markers', x='Annualized Volatility', y=self.col_ret, text=list(rets.index), layout=layout)
+
+
+class JPMMeanEstimator(JPMEstimator):
+
+    def __init__(self, override_mean=None, **kwargs):
+        self.override_mean = override_mean
+        super().__init__(**kwargs)
+
+    def fit(self, X, sigma):
+        rets, _ = self._parse_jpm()
+
+        sh = rets['Sharpe']
+
+        # calculate sharpe ratio for assets
+        jpm = self.jpm_map()
+        sh = {col: sh[jpm[col]] for col in X.columns}
+
+        self.se = SharpeEstimator(override_sharpe=sh, rfr=self.rfr, verbose=False)
+        rets = self.se.fit(X, sigma)
+
+        if self.override_mean:
+            for k, v in self.override_mean.items():
+                rets.loc[k] = v
+
+        if self.verbose:
+            print(pd.DataFrame({
+                'volatility': np.sqrt(np.diag(sigma)),
+                'mean': rets,
+            }))
+
+        assert set(X.columns) <= set(rets.index)
+        return rets[X.columns]
+
+
+class JPMCovEstimator(JPMEstimator):
+
+    def __init__(self, window=None, use_jpm_volatility=False):
+        self.window = window
+        self.use_jpm_volatility = use_jpm_volatility
+        super().__init__()
+
+    def fit(self, X, ):
+        rets, corr = self._parse_jpm()
+
+        jpm = self.jpm_map()
+
+        if set(X.columns) - set(jpm.keys()):
+            raise Exception(f'{set(X.columns) - set(jpm.keys())} are missing from JPM_MAP')
+        ix = [jpm[c] for c in X.columns]
+        corr = corr.loc[:, ix].loc[ix, :]
+        corr.index = X.columns
+        corr.columns = X.columns
+        vols = rets.loc[ix, 'Annualized Volatility']
+
+        if not self.use_jpm_volatility:
+            if self.window:
+                X = X.iloc[-self.window:]
+            vols = X.std() * np.sqrt(tools.freq(X.index))
+
+        # create covariance matrix from correlation
+        cov = corr * np.outer(vols, vols)
+
+        # cov.loc['CASH', 'CASH'] = 0.000001
+
+        assert set(X.columns) <= set(cov.index)
+        return cov.loc[X.columns, X.columns]
+
+
+JPM_MAP = {
+    'U.S. Cash': ('CASH',),
+    'U.S. Intermediate Treasuries': ('IEF', 'ZN', 'TYD'),
+    'U.S. Long Treasuries': ('TLT', 'TMF'),
+    'TIPS': (),
+    'U.S. Aggregate Bonds': (),
+    'U.S. Short Duration Government/Credit': (),
+    'U.S. Long Duration Government/Credit': (),
+    'U.S. Inv Grade Corporate Bonds': (),
+    'U.S. Long Corporate Bonds': (),
+    'U.S. High Yield Bonds': ('HYG',),
+    'U.S. Leveraged Loans': ('BKLN',),
+    'World Government Bonds hedged': (),
+    'World Government Bonds': (),
+    'World ex-U.S. Government Bonds hedged': (),
+    'World ex-U.S. Government Bonds': (),
+    'Emerging Markets Sovereign Debt': (),
+    'Emerging Markets Local Currency Debt': ('LEMB',),
+    'Emerging Markets Corporate Bonds': ('CEMB',),
+    'U.S. Muni 1-15 Yr Blend': (),
+    'U.S. Muni High Yield': ('HYD',),
+    'U.S. Large Cap': ('SPY', 'TQQQ'),
+    'U.S. Mid Cap': (),
+    'U.S. Small Cap': ('IWM',),
+    'Euro Area Large Cap': (),
+    'Japanese Equity': ('EWJ',),
+    'Hong Kong Equity': (),
+    'UK Large Cap': (),
+    'EAFE Equity hedged': ('DBEF',),
+    'EAFE Equity': (),
+    'Emerging Markets Equity': ('VWO',),
+    'AC Asia ex-Japan Equity': ('AAXJ',),
+    'AC World Equity': (),
+    'U.S. Equity Value Factor': (),
+    'U.S. Equity Momentum Factor': (),
+    'U.S. Equity Quality Factor': (),
+    'U.S. Equity Minimum Volatility Factor': (),
+    'U.S. Equity Dividend Yield Factor': (),
+    'U.S. Equity Diversified Factor': (),
+    'Global Convertible': (),
+    'Global Credit Sensitive Convertible': (),
+    'Private Equity': (),
+    'U.S. Core Real Estate*': (),
+    'U.S. Value-Added Real Estate*': (),
+    'European ex-UK Core Real Estate*': (),
+    'Asia Pacific Core Real Estate*': (),
+    'U.S. REITs': (),
+    'Global Infrastructure Equity': ('IGF',),
+    'Global Infrastructure Debt': (),
+    'Diversified Hedge Funds': (),
+    'Event Driven Hedge Funds': (),
+    'Long Bias Hedge Funds': (),
+    'Relative Value Hedge Funds': (),
+    'Macro Hedge Funds': (),
+    'Direct Lending*': (),
+    'Commodities*': (),
+    'Gold*': (),
+    # added 2020
+    'U.S. Inflation': (),
+    'U.S. Securitized': (),
+    'U.S. Convertible Bond hedged': (),
+    'Global Convertible Bond': (),
+    'U.S. Core Real Estate': ('VNQ',),
+    'Asia Pacific Core Real Estate': (),
+    'U.S. Value-Added Real Estate': (),
+    'Gold': (),
+    'Direct Lending': (),
+    'European ex-UK Core Real Estate': (),
+    'Commodities': (),
+}

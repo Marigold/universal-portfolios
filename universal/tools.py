@@ -29,9 +29,8 @@ def mp_pool(n_jobs):
 
 def dataset(name):
     """ Return sample dataset from /data directory. """
-    mod = sys.modules[__name__]
-    filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', name + '.pkl')
-    return pd.read_pickle(filename)
+    filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', name + '.csv')
+    return pd.read_csv(filename)
 
 
 def profile(algo, data=None, to_profile=[]):
@@ -125,11 +124,14 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
     :freq: frequency for sharpe (default 252 for daily data)
     :no_cash: if True, we can't keep cash (that is sum of weights == max_leverage)
     """
-    assert metric in ('return', 'sharpe', 'drawdown')
+    assert metric in ('return', 'sharpe', 'drawdown', 'ulcer')
 
     x_0 = max_leverage * np.ones(X.shape[1]) / float(X.shape[1])
     if metric == 'return':
         objective = lambda b: -np.sum(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)))
+    elif metric == 'ulcer':
+        objective = lambda b: -ulcer(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
+                                      rf_rate=rf_rate, freq=freq)
     elif metric == 'sharpe':
         objective = lambda b: -sharpe(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
                                       rf_rate=rf_rate, alpha=alpha, freq=freq, sd_factor=sd_factor)
@@ -175,7 +177,7 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
     keep = ~(mu.isnull() | (np.diag(sigma) < 0.00000001))
 
     mu = mu[keep]
-    sigma = sigma.ix[keep, keep]
+    sigma = sigma.loc[keep, keep]
 
     m = len(mu)
 
@@ -207,7 +209,7 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
                 sol = solvers.qp(P, q, G, h)
             else:
                 A = matrix(np.ones(n)).T
-                b = matrix(np.array([max_leverage]))
+                b = matrix(np.array([float(max_leverage)]))
                 sol = solvers.qp(P, q, G, h, A, b)
 
             return np.squeeze(sol['x'])
@@ -344,43 +346,114 @@ def log_progress(i, total, by=1):
         logging.debug('Progress: {}%...'.format(progress))
 
 
-def sharpe(r_log, rf_rate=0., alpha=0., freq=None, sd_factor=1.):
-    """ Compute annualized sharpe ratio from log returns. If data does
-        not contain datetime index, assume daily frequency with 252 trading days a year
+def mu_std(R, rf_rate=None, freq=None):
+    """Return mu and std."""
+    freq = freq or _freq(R.index)
 
-        TODO: calculate real sharpe ratio (using price relatives), see
-            http://www.treasury.govt.nz/publications/research-policy/wp/2003/03-28/twp03-28.pdf
-    """
-    freq = freq or _freq(r_log.index)
+    if rf_rate is None:
+        rf_rate = R['RFR']
 
-    mu, sd = r_log.mean(), r_log.std()
+    # adjust rf rate by frequency
+    rf = rf_rate / freq
+
+    # subtract risk-free rate
+    mu, sd = (R.sub(rf, 0)).mean(), (R.sub(rf, 0)).std()
 
     # annualize return and sd
     mu = mu * freq
     sd = sd * np.sqrt(freq)
 
-    # risk-free rate
-    rf = np.log(1 + rf_rate)
+    return pd.DataFrame({
+        'mu': mu,
+        'sd': sd,
+    })
 
-    sh = (mu - rf) / (sd + alpha)**sd_factor
+
+def _sub_rf(r, rf):
+    if isinstance(rf, float):
+        r -= rf
+    elif len(r.shape) == 1:
+        r -= rf.values
+    else:
+        r = r.sub(rf, 0)
+    return r
+
+
+def ulcer(r, rf_rate=0., freq=None):
+    """Compute Ulcer ratio."""
+    freq = freq or _freq(r.index)
+    rf = rf_rate / freq
+
+    # subtract risk-free rate
+    r = _sub_rf(r, rf)
+
+    # annualized excess return
+    mu = r.mean() * freq
+
+    # ulcer index
+    x = (1 + r).cumprod()
+
+    if isinstance(x, pd.Series):
+        drawdown = 1 - x / x.cummax()
+    else:
+        drawdown = 1 - x / np.maximum.accumulate(x)
+
+    return mu / np.sqrt((drawdown**2).mean())
+
+
+def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1., w=None):
+    """ Compute annualized sharpe ratio from returns. If data does
+        not contain datetime index, assume daily frequency with 252 trading days a year
+
+        See https://treasury.govt.nz/sites/default/files/2007-09/twp03-28.pdf for more info.
+    """
+    freq = freq or _freq(r.index)
+
+    # adjust rf rate by frequency
+    rf = rf_rate / freq
+
+    # subtract risk-free rate
+    r = _sub_rf(r, rf)
+
+    # annualize return and sd
+    if w is None:
+        mu = r.mean()
+        sd = r.std()
+    else:
+        mu = w_avg(r, w)
+        sd = w_std(r, w)
+
+    mu = mu * freq
+    sd = sd * np.sqrt(freq)
+
+    sh = mu / (sd + alpha)**sd_factor
 
     if isinstance(sh, float):
         if sh == np.inf:
             return np.inf * np.sign(mu - rf**(1./freq))
     else:
-        sh[sh == np.inf] *= np.sign(mu - rf**(1./freq))
+        pass
+        # sh[sh == np.inf] *= np.sign(mu - rf**(1./freq))
     return sh
 
 
-def sharpe_std(X):
+def w_avg(y, w):
+    return (y * w).sum() / w.sum()
+
+
+def w_std(y, w):
+    return np.sqrt(np.maximum(0, w_avg(y ** 2, w) - (w_avg(y, w)) ** 2))
+
+
+def sharpe_std(r, rf_rate=None, freq=None):
     """ Calculate sharpe ratio std. Confidence interval is taken from
     https://cran.r-project.org/web/packages/SharpeR/vignettes/SharpeRatio.pdf
     :param X: log returns
     """
-    sh = sharpe(X)
-    n = X.notnull().sum()
-    f = freq(X.index)
-    return np.sqrt((1. + sh**2/2.) * f / n)
+    sh = sharpe(r, rf_rate=rf_rate, freq=freq)
+    n = r.notnull().sum()
+    freq = freq or _freq(r.index)
+    return np.sqrt((1. + sh**2/2.) * freq / n)
 
 
 def freq(ix):
@@ -421,20 +494,20 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
     for i, col in enumerate(ordered_cols):
         if i > 0 and S[col].isnull().any():
             # find maximum correlation
-            synth = corr.ix[col, ordered_cols[:i]].idxmax()
+            synth = corr.loc[col, ordered_cols[:i]].idxmax()
 
             if pd.isnull(synth):
                 logging.info('NaN proxy for {} found, backfill prices'.format(col))
                 continue
 
-            cr = corr.ix[col, synth]
+            cr = corr.loc[col, synth]
             if abs(cr) >= corr_threshold:
                 # calculate b in y = b*x
                 nn = X[col].notnull()
-                b = (X.ix[nn, col] * X.ix[nn, synth]).sum() / (X.ix[nn, synth]**2).sum()
+                b = (X.loc[nn, col] * X.loc[nn, synth]).sum() / (X.loc[nn, synth]**2).sum()
 
                 # fill missing data
-                X.ix[~nn, col] = b * X.ix[~nn, synth]
+                X.loc[~nn, col] = b * X.loc[~nn, synth]
 
                 logging.info('Filling missing values of {} by {:.2f}*{} (correlation {:.2f})'.format(
                         col, b, synth, cr))
@@ -510,10 +583,10 @@ def bootstrap_history(S, drop_fraction=0.1, size=None, random_state=None):
         size = int(len(R) * (1 - drop_fraction))
 
     ix = np.random.choice(R.index, size=size, replace=False)
-    R = R.ix[sorted(ix)]
+    R = R.loc[sorted(ix)]
 
     # reconstruct series
-    R.iloc[0] = S.ix[R.index[0]]
+    R.iloc[0] = S.loc[R.index[0]]
     return R.cumprod()
 
 
@@ -540,14 +613,14 @@ def bootstrap_algo(S, algo, n, drop_fraction=0.1, random_state=None, n_jobs=-1):
 
 def cov_to_corr(sigma):
     """ Convert covariance matrix to correlation matrix. """
-    return sigma / np.sqrt(np.matrix(np.diag(sigma)).T.dot(np.matrix(np.diag(sigma))))
+    return sigma / np.sqrt(np.outer(np.diag(sigma), np.diag(sigma)))
 
 
-def get_cash(S, interest_rate=0.025):
-    rf_rate = (1 + interest_rate) ** (1. / freq(S.index))
-    cash = pd.Series(rf_rate, index=S.index)
+def get_cash(rfr, ib_fee=0.015):
+    rf_rate = 1 + (rfr + ib_fee) / freq(rfr.index)
+    cash = pd.Series(rf_rate, index=rfr.index)
     cash = cash.cumprod()
-    cash = cash / cash[-1]
+    cash = cash / cash.iloc[-1]
     return cash
 
 
@@ -557,3 +630,14 @@ def tradable_etfs():
         'ZIV', 'EEM', 'UGLD', 'FAS', 'UDOW', 'UMDD', 'URTY', 'TNA', 'ERX', 'BIB', 'UYG', 'RING', 'LABU', 'XLE', 'XLF', 'IBB',
         'FXI', 'XBI', 'XSD', 'GOOGL', 'AAPL', 'VNQ', 'DRN', 'O', 'IEF', 'GBTC', 'KBWY', 'KBWR', 'DPST', 'YINN', 'FHK', 'XOP',
         'GREK', 'SIL', 'JPNL', 'KRE', 'IAT', 'SOXL', 'RETL', 'VIXM', 'QABA', 'KBE', 'USDU', 'UUP', 'TYD']
+
+
+def same_vol(S):
+    R = S.pct_change().drop('RFR', axis=1)
+    rfr = S['RFR']
+    vol = R.std()
+    leverage = vol.mean() / vol
+    R = (leverage * (R.sub(rfr / 252, axis=0))).add(rfr / 252, axis=0)
+    S = (1 + R.fillna(0)).cumprod()
+    S['RFR'] = rfr
+    return S

@@ -8,7 +8,7 @@ EPS = 1e-10
 @pytest.fixture(scope="module")
 def S():
     """ Random portfolio for testing. """
-    return tools.random_portfolio(n=1000, k=3, mu=0., sd=0.01)
+    return tools.random_portfolio(n=100, k=3, mu=0., sd=0.01)
 
 
 @pytest.mark.parametrize("algo_class", [
