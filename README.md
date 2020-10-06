@@ -44,5 +44,5 @@ poetry publish --build
 ## Tests
 
 ```
-poetry run python -m pytest --capture=no --ff -x tests/ -k test_bias
+poetry run python -m pytest --capture=no --ff -x tests/
 ```

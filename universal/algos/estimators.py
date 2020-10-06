@@ -334,15 +334,15 @@ class MLEstimator(object):
         # align training data and drop missing values
         XX = XX.dropna()
         yy = yy.dropna()
-        XX = XX.ix[yy.index].dropna()
-        yy = yy.ix[XX.index]
+        XX = XX.loc[yy.index].dropna()
+        yy = yy.loc[XX.index]
 
         # fit model on historical data
         self.model.fit(XX, yy)
         # print(self.model.intercept_, pd.Series(self.model.coef_, index=XX.columns))
 
         # make predictions for all assets with features
-        XX_pred = XX.ix[XX.index[-1][0]]
+        XX_pred = XX.loc[XX.index[-1][0]]
         pred_sh = self.model.predict(XX_pred)
         pred_sh = pd.Series(pred_sh, index=XX_pred.index)
 

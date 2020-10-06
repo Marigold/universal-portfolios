@@ -53,7 +53,7 @@ class Kelly(Algo):
 
     def step(self, x, last_b):
         # get sigma and mu matrix
-        mu = self.M.ix[x.name]
+        mu = self.M.loc[x.name]
         sigma = self.S[x.name]
 
         # make sure sigma is properly indexed

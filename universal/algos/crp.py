@@ -19,7 +19,7 @@ class CRP(Algo):
         :params b: Constant rebalanced portfolio weights. Default is uniform.
         """
         super().__init__()
-        self.b = b
+        self.b = np.array(b) if b is not None else None
 
 
     def step(self, x, last_b, history):
@@ -57,7 +57,7 @@ class CRP(Algo):
         # init
         import ternary
         data = data.dropna(how='any')
-        data = data / data.ix[0]
+        data = data / data.iloc[0]
         dim = data.shape[1]
 
         # plot prices

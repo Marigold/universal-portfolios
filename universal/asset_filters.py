@@ -62,8 +62,8 @@ def filter_result(S, algo, asset_filter=None, result=None):
 
     def step(self, x, last_b, history):
         # find assets to remove -asset_r is already weighted
-        R = result.asset_r.ix[:x.name]
-        B = result.B.ix[:x.name]
+        R = result.asset_r.loc[:x.name]
+        B = result.B.loc[:x.name]
         cols = asset_filter.fit(R, B)
 
         # get weights with removed assets
