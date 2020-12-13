@@ -58,7 +58,7 @@ class BNN(Algo):
         D = D.sum(1).iloc[:-1]
 
         # sort and find nearest neighbors
-        D.sort()
+        D = D.sort_values()
         return D.index[:l]
 
 
