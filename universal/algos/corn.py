@@ -91,7 +91,7 @@ class CORN(Algo):
             return b
 
 
-    def step_fast(self, x, last_b):
+    def step_fast(self, x, last_b, history):
         # iterate time
         self.t += 1
 

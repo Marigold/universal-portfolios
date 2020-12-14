@@ -38,7 +38,7 @@ class ONS(Algo):
         self.b = np.mat(np.zeros(m)).T
 
 
-    def step(self, r, p):
+    def step(self, r, p, history):
         # calculate gradient
         grad = np.mat(r / np.dot(p, r)).T
         # update A
