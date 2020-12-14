@@ -194,7 +194,7 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
     # pure approach - problems with singular matrix
     if not long_only:
         sigma_inv = np.linalg.inv(sigma)
-        b = (1 + rf_rate) * sigma_inv * (mu - rf_rate)
+        b = q / 2 * (1 + rf_rate) * sigma_inv @ (mu - rf_rate)
         b = np.ravel(b)
     else:
         def maximize(mu, sigma, r, q):

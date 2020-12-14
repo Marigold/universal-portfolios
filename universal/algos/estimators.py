@@ -2,6 +2,7 @@ from sklearn.covariance import EmpiricalCovariance
 from sklearn.base import BaseEstimator
 import datetime
 import numpy as np
+from pathlib import Path
 import pandas as pd
 from .. import tools
 from sklearn.decomposition import PCA
@@ -50,24 +51,36 @@ EXPENSES = {
     'KWEB': 0.007,
     'JPNL': 0.0121,
     'EDC': 0.0148,
-    'EEMV': 0.0025,
+    'EEMV.L': 0.0025,
+    'IWVL.L': 0.003,
+    'MVEU.L': 0.0025,
     'USMV': 0.0015,
     'ACWV': 0.002,
     'EFAV': 0.002,
     'KRE': 0.0035,
     'EEM': 0.0068,
+    'VNQ': 0.0012 + 0.0309 * 0.15,
+    'EWJ': 0.0049,
+    'HYG': 0.0049,
+    'VLUE': 0.0004,
+    'SPMV': 0.001,
     'ZN': 0.,
     'RFR': 0.,
 }
 
 
 class CovarianceEstimator(object):
-    """ Estimator which accepts sklearn objects. """
+    """ Estimator which accepts sklearn objects.
 
-    def __init__(self, cov_est, window, standardize=True):
+    :param w: regularization from paper `Enhanced Portfolio Optimization`, value 0 means no regularization,
+        value 1 means to ignore covariances
+    """
+
+    def __init__(self, cov_est, window, standardize=True, w=0.):
         self.cov_est = cov_est
         self.window = window
         self.standardize = standardize
+        self.w = w
 
     def fit(self, X):
         assert X.mean().mean() < 1.
@@ -118,6 +131,9 @@ class CovarianceEstimator(object):
         # annualize covariance
         cov *= tools.freq(X.index)
 
+        # regularize
+        cov = (1 - self.w) * cov + self.w * np.diag(np.diag(cov))
+
         return cov
 
 
@@ -158,10 +174,11 @@ class SharpeEstimator(object):
 
         # assume that all assets have yearly sharpe ratio 0.5 and deduce return from volatility
         vol = pd.Series(np.sqrt(np.diag(sigma)), index=sigma.index)
-        missing_expenses = set(sigma.index) - set(EXPENSES.keys())
-        if missing_expenses:
-            logging.warning('Missing ETF expense for {}'.format(missing_expenses))
-        expenses = pd.Series([EXPENSES.get(c, 0.005) for c in sigma.index], index=sigma.index)
+        if self.verbose:
+            missing_expenses = set(sigma.index) - set(EXPENSES.keys())
+            if missing_expenses:
+                logging.warning('Missing ETF expense for {}'.format(missing_expenses))
+        expenses = pd.Series([EXPENSES.get(c, 0.0) for c in sigma.index], index=sigma.index)
         mu = est_sh * vol + rfr - expenses
 
         # adjust CASH - note that CASH has -1.5% fee from IB
@@ -542,15 +559,17 @@ class TaxAdjustment:
 
 class JPMEstimator(object):
 
-    def __init__(self, year=2020, rfr=0., verbose=False):
+    def __init__(self, year=2021, currency='usd', rfr=0., verbose=False):
         self.rfr = rfr
         self.verbose = verbose
         self.year = year
+        self.currency = currency
         self.col_ret = f'Arithmetic Return {year}'
 
     def _parse_jpm(self):
         # load excel
-        df = pd.read_excel(f'data/jpm-matrix-usd-{self.year}.xlsx', skiprows=7)
+        path = Path(__file__).parents[1] / 'data' / 'jpm_assumptions' / f'jpm-matrix-{self.currency}-{self.year}.xlsx'
+        df = pd.read_excel(path, skiprows=7)
         df.columns = ['class', 'asset', f'Compound Return {self.year}', self.col_ret, 'Annualized Volatility', f'Compound Return {self.year - 1}'] + list(df.columns[6:])
         df['class'] = df['class'].fillna(method='ffill')
 
@@ -569,7 +588,13 @@ class JPMEstimator(object):
         corr.index = [c.replace('\xa0', ' ') for c in corr.index]
         corr.columns = [c.replace('\xa0', ' ') for c in corr.columns]
 
-        rets['Sharpe'] = (rets[self.col_ret] - rets.loc['U.S. Cash', self.col_ret]) / rets['Annualized Volatility']
+        if self.currency == 'usd':
+            rf = rets.loc['U.S. Cash', self.col_ret]
+        elif self.currency == 'eur':
+            rf = rets.loc['Euro Cash', self.col_ret]
+        else:
+            raise NotImplementedError()
+        rets['Sharpe'] = (rets[self.col_ret] - rf) / rets['Annualized Volatility']
 
         return rets, corr
 
@@ -604,7 +629,9 @@ class JPMEstimator(object):
             height=800,
             width=800,
         )
-        rets.iplot(kind='scatter', mode='markers', x='Annualized Volatility', y=self.col_ret, text=list(rets.index), layout=layout)
+        # add sharpe ratio to labels
+        text = [a + f"<br>{rets.loc[a, 'Sharpe']:.2f}" for a in  list(rets.index)]
+        rets.iplot(kind='scatter', mode='markers', x='Annualized Volatility', y=self.col_ret, text=text, layout=layout)
 
 
 class JPMMeanEstimator(JPMEstimator):

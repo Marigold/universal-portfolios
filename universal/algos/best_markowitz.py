@@ -23,17 +23,19 @@ class BestMarkowitz(CRP):
         # update frequency
         freq = tools.freq(X.index)
 
+        R = X - 1
+
         # calculate mean and covariance matrix and annualize them
-        sigma = X.cov() * freq
+        sigma = R.cov() * freq
 
         if self.global_sharpe:
             mu = pd.Series(np.sqrt(np.diag(sigma)) * self.global_sharpe, X.columns)
         else:
-            mu = X.mean() * freq
+            mu = R.mean() * freq
 
         self.b = tools.opt_markowitz(mu, sigma, **self.opt_markowitz_kwargs)
 
-        return super(BestMarkowitz, self).weights(X)
+        return super(BestMarkowitz, self).weights(R)
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ def parse_requirements(filename):
     lineiter = (line.strip() for line in open(filename))
     return [line for line in lineiter if line and not line.startswith("#")]
 
-version='0.4.1'
+version = '0.4.3'
 
 install_reqs = parse_requirements('requirements.txt')
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "universal-portfolios"
-version = "0.4.1"
+version = "0.4.3"
 description = "Collection of algorithms for online portfolio selection"
 readme = "README.md"
 repository = "https://github.com/Marigold/universal-portfolios"
