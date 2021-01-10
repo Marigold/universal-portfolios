@@ -281,9 +281,6 @@ class MPT(Algo):
 
         force_weights = self.force_weights or {}
 
-        # regularization parameter for singular cases
-        ALPHA = 0.000001
-
         # portfolio constraints
         bounds = self.bounds or {}
         if 'all' not in bounds:
@@ -320,48 +317,7 @@ class MPT(Algo):
         G = matrix(np.vstack(G).astype(float))
         h = matrix(np.array(h).astype(float))
 
-        def maximize(mu, sigma, q):
-            P = matrix(2 * (sigma + ALPHA * np.eye(n)))
-            q = matrix(-q * mu + 2 * ALPHA * last_b.values)
-
-            A = matrix(np.ones(n)).T
-            b = matrix(np.array([1.]))
-
-            for sym, w in force_weights.items():
-                ix = symbols.index(sym)
-                a = np.zeros(n)
-                a[ix] = 1
-                A = matrix(np.r_[A, matrix(a).T])
-                b = matrix(np.r_[b, matrix([w])])
-
-            sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
-
-            if sol['status'] != 'optimal':
-                logging.warning("Solution not found for {}, using last weights".format(last_b.name))
-                return last_b
-
-            return np.squeeze(sol['x'])
-
-        def maximize_with_penalization(b, last_b, mu, sigma, q, gamma):
-            n = len(mu)
-            c = np.sign(b - last_b)
-            sigma = matrix(sigma)
-            mu = matrix(mu)
-
-            P = 2 * (sigma + ALPHA * matrix(np.eye(n)))
-            qq = 2 * sigma * matrix(last_b) - q * mu + matrix(gamma * c)
-
-            G = matrix(np.r_[-np.diag(c), np.eye(n), -np.eye(n)])
-            h = matrix(np.r_[np.zeros(n), 1. - last_b, last_b])
-
-            A = matrix(np.ones(n)).T
-            b = matrix([1. - sum(last_b)])
-
-            sol = solvers.qp(P, qq, G, h, A, b, initvals=np.zeros(n))
-
-            return np.squeeze(sol['x']) + np.array(last_b)
-
-        b = maximize(mu, sigma, q)
+        b = _maximize(mu, sigma, q, n, G, h, symbols, last_b, force_weights)
         # try:
         #     b = maximize(mu, sigma, q)
         # except ValueError as e:
@@ -416,3 +372,48 @@ class MPT(Algo):
 
         b = maximize(mu, sigma, q)
         return b
+
+
+# regularization parameter for singular cases
+ALPHA = 0.000001
+
+def _maximize(mu, sigma, q, n, G, h, symbols, last_b, force_weights):
+    P = matrix(2 * (sigma + ALPHA * np.eye(n)))
+    q = matrix(-q * mu + 2 * ALPHA * last_b.values)
+
+    A = matrix(np.ones(n)).T
+    b = matrix(np.array([1.]))
+
+    for sym, w in force_weights.items():
+        ix = symbols.index(sym)
+        a = np.zeros(n)
+        a[ix] = 1
+        A = matrix(np.r_[A, matrix(a).T])
+        b = matrix(np.r_[b, matrix([w])])
+
+    sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
+
+    if sol['status'] != 'optimal':
+        logging.warning("Solution not found for {}, using last weights".format(last_b.name))
+        return last_b
+
+    return np.squeeze(sol['x'])
+
+def _maximize_with_penalization(b, last_b, mu, sigma, q, gamma):
+    n = len(mu)
+    c = np.sign(b - last_b)
+    sigma = matrix(sigma)
+    mu = matrix(mu)
+
+    P = 2 * (sigma + ALPHA * matrix(np.eye(n)))
+    qq = 2 * sigma * matrix(last_b) - q * mu + matrix(gamma * c)
+
+    G = matrix(np.r_[-np.diag(c), np.eye(n), -np.eye(n)])
+    h = matrix(np.r_[np.zeros(n), 1. - last_b, last_b])
+
+    A = matrix(np.ones(n)).T
+    b = matrix([1. - sum(last_b)])
+
+    sol = solvers.qp(P, qq, G, h, A, b, initvals=np.zeros(n))
+
+    return np.squeeze(sol['x']) + np.array(last_b)

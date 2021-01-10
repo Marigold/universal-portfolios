@@ -167,19 +167,48 @@ class AlgoResult(PickleMixin):
         result.set_rf_rate(self.rf_rate)
         return result.sharpe_std
 
-    @property
-    def appraisal(self):
-        reg = self._capm()
-        alpha = reg.params.const
-        sd = reg.resid.std()
-        # regularization term in case sd is too low
-        return alpha / (sd + 1e-3) * np.sqrt(self.freq())
+    def _capm_ucrp(self):
+        y = (self.r).cumprod()
+        y.name = 'r'
+        bases = (self.ucrp_r).cumprod().to_frame()
+        bases.columns = ['ucrp']
+
+        return tools.capm(y, bases, rf=self.rf_rate)
 
     @property
-    def appraisal_std(self):
-        reg = self._capm()
-        sd = reg.resid.std()
-        alpha_std = np.sqrt(reg.cov_params().loc['const', 'const']) / sd * np.sqrt(self.freq())
+    def appraisal_ucrp(self):
+        c = self._capm_ucrp()
+        alpha = c['alpha']
+        sd = c['residual'].pct_change().std() * np.sqrt(self.freq())
+        # regularization term in case sd is too low
+        return alpha / (sd + 1e-3)
+
+    @property
+    def appraisal_ucrp_std(self):
+        c = self._capm_ucrp()
+        sd = c['residual'].pct_change().std()
+        alpha_std = np.sqrt(c['model'].cov_params().loc['Intercept', 'Intercept']) / sd * np.sqrt(self.freq())
+        return alpha_std
+
+    @property
+    def appraisal_capm(self):
+        y = (self.r).cumprod()
+        y.name = 'r'
+        c = tools.capm(y, self.X.cumprod(), rf=self.rf_rate)
+
+        alpha = c['alpha']
+        sd = c['residual'].pct_change().std() * np.sqrt(self.freq())
+        # regularization term in case sd is too low
+        return alpha / (sd + 1e-3)
+
+    @property
+    def appraisal_capm_std(self):
+        y = (self.r).cumprod()
+        y.name = 'r'
+        c = tools.capm(y, self.X.cumprod(), rf=self.rf_rate)
+
+        sd = c['residual'].pct_change().std()
+        alpha_std = np.sqrt(c['model'].cov_params().loc['Intercept', 'Intercept']) / sd * np.sqrt(self.freq())
         return alpha_std
 
     @property
@@ -218,11 +247,11 @@ class AlgoResult(PickleMixin):
 
     @property
     def annualized_return(self):
-        return np.exp(self.r_log.mean() * self.freq()) - 1
+        return (self.r.mean() - 1) * self.freq()
 
     @property
     def annualized_volatility(self):
-        return np.exp(self.r_log).std() * np.sqrt(self.freq())
+        return self.r.std() * np.sqrt(self.freq())
 
     @property
     def drawdown_period(self):
@@ -274,16 +303,6 @@ class AlgoResult(PickleMixin):
         x = x or self.r
         return tools.freq(x.index)
 
-    def _capm(self):
-        rfr = self.rf_rate / self.freq()
-        rr = self.ucrp_r - rfr
-        if 'CASH' in self.B.columns:
-            cash = self.B.CASH
-        else:
-            cash = 0
-        m = OLS(self.r - 1 - (1 - cash) * rfr, np.vstack([np.ones(len(self.r)), rr - 1]).T)
-        return m.fit()
-
     @property
     def ucrp_r(self):
         return (self.X.drop('CASH', axis=1, errors='ignore') - 1).mean(1) + 1
@@ -294,10 +313,22 @@ class AlgoResult(PickleMixin):
         _, beta = self.alpha_beta()
         return (self.r - 1) - beta * (self.ucrp_r - 1) + 1
 
+    @property
+    def residual_capm(self):
+        """Portfolio minus CAPM"""
+        y = (self.r).cumprod()
+        y.name = 'r'
+        c = tools.capm(y, self.X.cumprod(), rf=self.rf_rate)
+        return c['residual'].pct_change() + 1
+
     def alpha_beta(self):
-        reg = self._capm()
-        alpha, beta = reg.params.const * self.freq(), reg.params.x1
-        return alpha, beta
+        y = (self.r).cumprod()
+        y.name = 'r'
+        bases = (self.ucrp_r).cumprod().to_frame()
+        bases.columns = ['ucrp']
+
+        c = tools.capm(y, bases, rf=self.rf_rate)
+        return c['alpha'], c['betas']['ucrp']
 
     def summary(self, name=None):
         alpha, beta = self.alpha_beta()
@@ -306,7 +337,8 @@ class AlgoResult(PickleMixin):
     Sharpe ratio: {self.sharpe:.2f} ± {self.sharpe_std:.2f}
     Ulcer index: {self.ulcer:.2f}
     Information ratio (wrt UCRP): {self.information:.2f}
-    Appraisal ratio (wrt UCRP): {self.appraisal:.2f} ± {self.appraisal_std:.2f}
+    Appraisal ratio (CAPM): {self.appraisal_capm:.2f} ± {self.appraisal_capm_std:.2f}
+    Appraisal ratio (wrt UCRP): {self.appraisal_ucrp:.2f} ± {self.appraisal_ucrp_std:.2f}
     UCRP sharpe: {self.ucrp_sharpe:.2f} ± {self.ucrp_sharpe_std:.2f}
     Beta / Alpha: {beta:.2f} / {alpha:.3%}
     Annualized return: {self.annualized_return:.2%}
@@ -435,11 +467,12 @@ class ListResult(list, PickleMixin):
     def summary(self):
         return '\n'.join([result.summary(name) for result, name in zip(self, self.names)])
 
-    def plot(self, ucrp=False, bah=False, residual=False, assets=False, **kwargs):
+    def plot(self, ucrp=False, bah=False, residual=False, capm_residual=False, assets=False, **kwargs):
         """ Plot strategy equity.
         :param ucrp: Add uniform CRP as a benchmark.
         :param bah: Add Buy-And-Hold portfolio as a benchmark.
         :param residual: Add portfolio minus UCRP as a benchmark.
+        :param capm_residual: Add portfolio minus CAPM proxy as a benchmark.
         :param assets: Add asset prices.
         :param kwargs: Additional arguments for pd.DataFrame.plot
         """
@@ -467,6 +500,9 @@ class ListResult(list, PickleMixin):
         if residual:
             d['RESIDUAL'] = self[0].residual_r.cumprod()
             d[['RESIDUAL']].plot(**kwargs)
+        if capm_residual:
+            d['CAPM_RESIDUAL'] = self[0].residual_capm.cumprod()
+            d[['CAPM_RESIDUAL']].plot(**kwargs)
 
         # plot uniform constant rebalanced portfolio
         if ucrp:

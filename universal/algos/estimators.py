@@ -26,7 +26,7 @@ EXPENSES = {
     'ERX': 0.01,
     'RING': 0.0039,
     'LABU': 0.0109,
-    'YINN': 0.013,
+    'YINN': 0.0152,
     'SOXL': 0.0097,
     'RETL': 0.0105,
     'TYD': 0.0097,
@@ -64,6 +64,7 @@ EXPENSES = {
     'HYG': 0.0049,
     'VLUE': 0.0004,
     'SPMV': 0.001,
+    'IDWP.L': 0.0069,
     'ZN': 0.,
     'RFR': 0.,
 }
@@ -74,22 +75,24 @@ class CovarianceEstimator(object):
 
     :param w: regularization from paper `Enhanced Portfolio Optimization`, value 0 means no regularization,
         value 1 means to ignore covariances
+    :param frequency: how often should we recalculate covariance matrix, used to speed up MPT prototyping
     """
 
-    def __init__(self, cov_est, window, standardize=True, w=0.):
+    def __init__(self, cov_est, window, standardize=True, w=0., frequency=1):
         self.cov_est = cov_est
         self.window = window
         self.standardize = standardize
         self.w = w
+        self.frequency = frequency
+        self._last_cov = None
+        self._last_n = 0
 
     def fit(self, X):
-        assert X.mean().mean() < 1.
+        # assert X.mean().mean() < 1.
 
-        # exclude CASH from covariance
-        if 'CASH' in X:
-            cov = self.fit(X.drop('CASH', axis=1))
-            cov = cov.reindex(X.columns, fill_value=0, axis=0).reindex(X.columns, fill_value=0, axis=1)
-            return cov
+        # reuse covariance matrix
+        if self.frequency > 1 and len(X) - self._last_n < self.frequency and list(X.columns) == list(self._last_cov.columns):
+            return self._last_cov
 
         # only use last window
         if self.window:
@@ -134,6 +137,13 @@ class CovarianceEstimator(object):
         # regularize
         cov = (1 - self.w) * cov + self.w * np.diag(np.diag(cov))
 
+        # CASH should have zero covariance
+        if 'CASH' in X.columns:
+            cov.loc['CASH', :] = 0
+            cov.loc[:, 'CASH'] = 0
+
+        self._last_cov = cov
+        self._last_n = len(X)
         return cov
 
 
@@ -520,11 +530,12 @@ class TaxAdjustment:
     """ Adjust mean return for taxes. It should be 1. if we are at loss and 0.85 if we are in super profit. Anything
     in between will produce way smaller factor around 0.5"""
 
-    def __init__(self, market_value, profit, tax=0.15):
+    def __init__(self, market_value, profit, tax=0.15, days_until_year_end=None):
         assert market_value.notnull().all()
         self.market_value = market_value
         self.profit = profit
         self.tax = tax
+        self.days_until_year_end = days_until_year_end
 
     def fit(self, mu, sigma):
         b = self.market_value
@@ -535,11 +546,10 @@ class TaxAdjustment:
         sigma = sigma.loc[b.index, b.index]
 
         # scale sigma to the end of the year
-        days_until_year_end = (datetime.date(datetime.date.today().year + 1, 1, 1) - datetime.date.today()).days
+        days_until_year_end = self.days_until_year_end or (datetime.date(datetime.date.today().year + 1, 1, 1) - datetime.date.today()).days
         sigma = sigma * days_until_year_end / 365
 
         # calculate tax factor
-        # TODO: this must be normalized until the end of year
         x = np.random.multivariate_normal(m, sigma, size=100000)
         r = x @ b
 

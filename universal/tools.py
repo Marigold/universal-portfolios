@@ -1,3 +1,4 @@
+import typing as t
 import pandas as pd
 import numpy as np
 import scipy.optimize as optimize
@@ -12,6 +13,7 @@ import logging
 import itertools
 import multiprocessing
 from statsmodels import api as sm
+from statsmodels.api import OLS
 import contextlib
 from cvxopt import solvers, matrix
 solvers.options['show_progress'] = False
@@ -641,3 +643,36 @@ def same_vol(S):
     S = (1 + R.fillna(0)).cumprod()
     S['RFR'] = rfr
     return S
+
+
+
+def capm(y: pd.Series, bases: pd.DataFrame, rf=0., fee=0.):
+    freq = _freq(y.index)
+    rf = rf / freq
+    fee = fee / freq
+    R = y.pct_change() - rf
+    R.name = y.name
+    R_base = bases.pct_change().sub(rf, axis=0)
+
+    # CAPM:
+    # R = alpha + rf + beta * (Rm - rf)
+    model = OLS.from_formula(f"Q('{y.name}') ~ {'+'.join(bases.columns)}", R_base.join(R)).fit()
+
+    alpha = model.params['Intercept'] * freq
+    betas = model.params[bases.columns]
+
+    # reconstruct artificial portfolio
+    proxy = R_base @ betas + (1 - betas.sum()) * (rf + fee)
+    cumproxy = (1 + proxy).cumprod()
+
+    # residual portfolio
+    r = y.pct_change() - cumproxy.pct_change()
+    residual = (1 + r).cumprod()
+
+    return {
+        'alpha': alpha,
+        'betas': betas,
+        'cumproxy': cumproxy,
+        'model': model,
+        'residual': residual,
+    }

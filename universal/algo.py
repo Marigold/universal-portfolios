@@ -88,7 +88,7 @@ class Algo(object):
                 continue
 
             # trade each `frequency` periods
-            if (t + 1) % self.frequency != 0:
+            if (t - min_history) % self.frequency != 0:
                 continue
 
             # predict for t+1
