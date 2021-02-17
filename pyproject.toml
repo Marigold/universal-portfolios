@@ -27,6 +27,8 @@ pytest = "^6.0.1"
 ipdb = "^0.13.3"
 line-profiler = "^3.0.2"
 ipykernel = "^5.3.4"
+jupyter = "^1.0.0"
+nbdime = "^2.1.0"
 
 [build-system]
 requires = ["poetry>=0.12"]
