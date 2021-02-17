@@ -241,11 +241,7 @@ def bcrp_weights(X):
 
 
 def rolling_cov_pairwise(df, *args, **kwargs):
-    d = {}
-    for c in df.columns:
-        d[c] = pd.rolling_cov(df[c], df, *args, **kwargs)
-    p = pd.Panel(d)
-    return p.transpose(1, 0, 2)
+    return df.rolling(kwargs['window']).cov(other=df, pairwise=True)
 
 
 def rolling_corr(x, y, **kwargs):
