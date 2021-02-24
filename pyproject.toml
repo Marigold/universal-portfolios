@@ -21,6 +21,7 @@ requests = "^2.24.0"
 plotly = "^4.9.0"
 pandas = "^1.1.1"
 cvxopt = "1.2.5"
+tqdm = "^4.56.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.0.1"
