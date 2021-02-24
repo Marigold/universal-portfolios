@@ -19,3 +19,4 @@ from .best_so_far import BestSoFar
 from .best_markowitz import BestMarkowitz
 from .mpt import MPT
 from .estimators import *
+from .kelly_gaussian import KellyGaussian
