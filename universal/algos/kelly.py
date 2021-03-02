@@ -49,12 +49,12 @@ class Kelly(Algo):
     def init_step(self, X):
         # precalculate correlations
         self.S = tools.rolling_cov_pairwise(X, window=self.window, min_periods=self.min_history)
-        self.M = pd.rolling_mean(X, window=self.window, min_periods=self.min_history)
+        self.M = X.rolling(window=self.window, min_periods=self.min_history).mean()
 
-    def step(self, x, last_b):
+    def step(self, x, last_b, history):
         # get sigma and mu matrix
         mu = self.M.loc[x.name]
-        sigma = self.S[x.name]
+        sigma = self.S.loc[x.name]
 
         # make sure sigma is properly indexed
         sigma = sigma.reindex(index=x.index).reindex(columns=x.index)
@@ -72,7 +72,7 @@ class Kelly(Algo):
             if q == 0:
                 mu = 2. * gamma * last_b
             else:
-                mu += 2.*gamma / q
+                mu += 2. * gamma / q
 
         # pure approach - problems with singular matrix
         if not self.long_only:
