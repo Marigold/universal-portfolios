@@ -40,7 +40,7 @@ class Algo(object):
         self.min_history = min_history or 0
         self.frequency   = frequency
         self.trx_fee_pct = kwargs.get('trx_fee_pct', 0)
-        self.n           = kwargs.get('n', 10)
+        self.trx_fee_n   = kwargs.get('trx_fee_n', 10)
     
     def init_weights(self, columns):
         """ Set initial weights.
@@ -128,7 +128,7 @@ class Algo(object):
         v_t_ = np.dot(1, vt) / self.window
 
         # Update portfolio
-        b_1 = self.n * (vt - np.dot(v_t_, 1))
+        b_1 = self.trx_fee_n * (vt - np.dot(v_t_, 1))
         b_  = b_1 + np.sign(b_1)*np.maximum(np.zeros(len(b_1)), np.abs(b_1) - lambd)
 
         # project it onto simplex
