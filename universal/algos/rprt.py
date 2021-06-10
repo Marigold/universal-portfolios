@@ -23,7 +23,7 @@ class RPRT(Algo):
         :param theta:
         """
 
-        super(RPRT, self).__init__(min_history = window, **kwargs)
+        super().__init__(min_history = window, **kwargs)
 
         # input check
         if window < 2:
