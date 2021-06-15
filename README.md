@@ -1,12 +1,13 @@
 # Universal Portfolios
 
-
 ![PyPi Version](https://img.shields.io/pypi/v/universal-portfolios?style=flat-square)
 ![PyPi License](https://img.shields.io/pypi/l/universal-portfolios?style=flat-square)
 ![PyPi Downloads](https://img.shields.io/pypi/dm/universal-portfolios?style=flat-square)
+
 ![Open PRs](https://img.shields.io/github/issues-pr-raw/Marigold/universal-portfolios?style=flat-square)
 ![Contributors](https://img.shields.io/badge/contributors-9-orange.svg?style=flat-square)
 ![Repo size](https://img.shields.io/github/repo-size/Marigold/universal-portfolios?style=flat-square)
+
 
 The purpose of this Python package is to put together different Online Portfolio Selection (OLPS) algorithms and provide unified tools for their analysis.
 
@@ -18,8 +19,8 @@ Several algorithms from the literature are currently implemented, based on the a
 ## Outline of this package
 
 * In the `examples` folder are two Python Notebooks: 
-   - [Online Portfolios](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb) : explains the basic use of the library.
-   - [Modern Portfolio Theory](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/modern-portfolio-theory.ipynb) : ...
+   - [Online Portfolios](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb) : explains the basic use of the library. Script sequence, various options, method arguments, and a strategy template to get you started.
+   - [Modern Portfolio Theory](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/modern-portfolio-theory.ipynb) : goes deeper into the OLPS principle and the tools developped in this library to approach it.
 
 * `universal.data` contains various datasets to help you in your journey
 
@@ -59,7 +60,7 @@ Several algorithms from the literature are currently implemented, based on the a
 
 * `universal.result` computes the portfolio wealth from the weights and various metrics on the strategy's performance.
 
- # **Quick Start**
+## Quick Start
  
 ```python
 from universal import tools
