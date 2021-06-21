@@ -48,13 +48,18 @@ Several algorithms from the literature are currently implemented, based on the a
  - [WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)
 -->
 
-| | | | |
+<div align="center">
+   
+
+|||||
 |---|---|---|---|
-| [Anticorr](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/anticor.py) | [BNN](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bnn.py) | [Exponential Gradient](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/eg.py) | [PAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/pamr.py) |
-| [BAH](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bah.py) | [CORN](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/corn.py) | [Kelly](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/kelly.py) | [RMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rmr.py) |
-| [BCRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bcrp.py) | [CRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/crp.py) | [MPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/mpt.py) | [SICE](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/single_index_covariance_estimator.py) |
-| [Markovitz](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/best_markowitz.py) | [Dynamic CRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/dynamic_crp.py) | [OLMAR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/olmar.py) | [Universal Portfolios](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/up.py) |
-| [Best so far](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/best_so_far.py) | [CWMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/cwmr.py) | [ONS](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ons.py) | [WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py) |
+| __[Anticorr](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/anticor.py)__ | __[BNN](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bnn.py)__ | __[Exponential Gradient](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/eg.py)__ | __[PAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/pamr.py)__ |
+| __[BAH](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bah.py)__ | __[CORN](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/corn.py)__ | __[Kelly](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/kelly.py)__ | __[RMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rmr.py)__ |
+| __[BCRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bcrp.py)__ | __[CRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/crp.py)__ | __[MPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/mpt.py)__ | __[SICE](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/single_index_covariance_estimator.py)__ |
+| __[Markovitz](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/best_markowitz.py)__ | __[Dynamic CRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/dynamic_crp.py)__ | __[OLMAR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/olmar.py)__ | __[Universal Portfolios](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/up.py)__ |
+| __[Best so far](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/best_so_far.py)__ | __[CWMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/cwmr.py)__ | __[ONS](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ons.py)__ | __[WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)__ |
+
+</div>
 
 * `universal.algo` provides a general class inherited by all the individual algos' subclasses. Algo computes the weights at every timestep.
 
