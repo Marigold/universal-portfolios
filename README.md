@@ -76,9 +76,9 @@ pip install universal-portfolios
 
 ## Development
 
-It uses poetry to manage dependencies. Run `poetry install` to install virtual environment and then `poetry shell` to launch it.
+[poetry](https://python-poetry.org/) is used to manage the dependencies. Run `poetry install` to install a virtual environment and then `poetry shell` to launch it.
 
-Exporting dependencies to `requirements.txt` file is needed for mybinder.org. It is done via
+Exporting dependencies to the `requirements.txt` file is needed for mybinder.org. It is done via
 
 ```
 poetry export --without-hashes -f requirements.txt > requirements.txt
