@@ -127,6 +127,7 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
     :no_cash: if True, we can't keep cash (that is sum of weights == max_leverage)
     """
     assert metric in ('return', 'sharpe', 'drawdown', 'ulcer')
+    assert X.notnull().all().all()
 
     x_0 = max_leverage * np.ones(X.shape[1]) / float(X.shape[1])
     if metric == 'return':
@@ -473,7 +474,7 @@ def freq(ix):
 _freq = freq
 
 
-def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
+def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type='regression'):
     """ Fill synthetic history of ETFs based on history of other stocks (e.g. UBT is 2x TLT).
     If there's an asset with corr_threshold higher than corr_threshold, we use its returns
     to calculate returns for missing values. Otherwise we will use the same price.
@@ -500,9 +501,17 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False):
 
             cr = corr.loc[col, synth]
             if abs(cr) >= corr_threshold:
-                # calculate b in y = b*x
                 nn = X[col].notnull()
-                b = (X.loc[nn, col] * X.loc[nn, synth]).sum() / (X.loc[nn, synth]**2).sum()
+
+                if beta_type == 'regression':
+                    # calculate b in y = b*x
+                    b = (X.loc[nn, col] * X.loc[nn, synth]).sum() / (X.loc[nn, synth]**2).sum()
+                elif beta_type == 'std':
+                    # make sure standard deviation is identical
+                    b = X.loc[nn, col].std() / X.loc[nn, synth].std()
+                else:
+                    raise NotImplementedError()
+
 
                 # fill missing data
                 X.loc[~nn, col] = b * X.loc[~nn, synth]

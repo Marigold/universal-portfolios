@@ -186,11 +186,13 @@ class MPT(Algo):
         # check NA assets
         na_assets = (X.notnull().sum() < self.min_history).values
         if any(na_assets):
-            raise Exception('Assets containing null values: {}'.format(X.columns[na_assets]))
+            logging.warning('Assets containing null values: {}'.format(X.columns[na_assets]))
+            # raise Exception('Assets containing null values: {}'.format(X.columns[na_assets]))
 
-        X = X.iloc[:, ~na_assets]
-        x = x[~na_assets]
-        last_b = last_b[~na_assets]
+        # TODO: should we enable this?
+        # X = X.iloc[:, ~na_assets]
+        # x = x[~na_assets]
+        # last_b = last_b[~na_assets]
 
         # get sigma and mu estimations
         sigma = self.cov_estimator.fit(X - 1)

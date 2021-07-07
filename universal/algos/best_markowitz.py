@@ -14,8 +14,9 @@ class BestMarkowitz(CRP):
     PRICE_TYPE = 'ratio'
     REPLACE_MISSING = False
 
-    def __init__(self, global_sharpe=None, **kwargs):
+    def __init__(self, global_sharpe=None, sharpe=None, **kwargs):
         self.global_sharpe = global_sharpe
+        self.sharpe = sharpe
         self.opt_markowitz_kwargs = kwargs
 
     def weights(self, X):
@@ -28,7 +29,9 @@ class BestMarkowitz(CRP):
         # calculate mean and covariance matrix and annualize them
         sigma = R.cov() * freq
 
-        if self.global_sharpe:
+        if self.sharpe:
+            mu = pd.Series(np.sqrt(np.diag(sigma)), X.columns) * pd.Series(self.sharpe).reindex(X.columns)
+        elif self.global_sharpe:
             mu = pd.Series(np.sqrt(np.diag(sigma)) * self.global_sharpe, X.columns)
         else:
             mu = R.mean() * freq

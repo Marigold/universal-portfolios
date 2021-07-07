@@ -71,6 +71,8 @@ Note : If you don't want to install the package locally, you can run both notebo
 
 ## Installation
 
+Only Python 3 is supported
+
 ```
 pip install universal-portfolios
 ```

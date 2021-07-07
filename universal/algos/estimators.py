@@ -112,15 +112,26 @@ class CovarianceEstimator(object):
             cov = pd.DataFrame(self.cov_est.covariance_, index=Y.columns, columns=Y.columns)
         else:
             # estimation for matrix without NaN values - should be larger than min_history
-            cov = self.cov_est.fit(Y).covariance_
-            cov = pd.DataFrame(cov, index=Y.columns, columns=Y.columns)
+            # cov = self.cov_est.fit(Y).covariance_
+            # cov = pd.DataFrame(cov, index=Y.columns, columns=Y.columns)
 
             # NOTE: nonsense - we wouldn't get positive-semidefinite matrix
             # improve estimation for those with full history
-            # Y = Y.dropna(1, how='any')
-            # full_cov = self.cov_est.fit(Y).covariance_
-            # full_cov = pd.DataFrame(full_cov, index=Y.columns, columns=Y.columns)
-            # cov.update(full_cov)
+            Yn = Y.dropna(1, how='any')
+            full_cov = self.cov_est.fit(Yn).covariance_
+            full_cov = pd.DataFrame(full_cov, index=Yn.columns, columns=Yn.columns)
+            full_cov = full_cov.reindex(Y.columns).reindex(columns=Y.columns)
+
+            # put back NaN values
+            # TODO: sort in order of most values
+            cols = list(Yn.columns)
+            for col in set(Y.columns) - set(Yn.columns):
+                cols.append(col)
+                c = Y[cols].dropna().cov().loc[col]
+                full_cov.loc[col, cols] = c
+                full_cov.loc[cols, col] = c
+
+            cov = full_cov.loc[Y.columns, Y.columns]
 
         # standardize back
         cov = np.outer(std, std) * cov
