@@ -28,7 +28,7 @@ Several state-of-the-art algorithms are implemented, based on my understanding o
 
 <div align="center">
 
-| Benchmarks | Follow the winner | Follow the looser | Pattern matching | Other |
+| Benchmarks | Follow the winner | Follow the loser | Pattern matching | Other |
 |---|---|---|---|---|
 | __[BAH](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bah.py)__ | __[Universal Portfolios](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/up.py)__ | __[Anticorr](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/anticor.py)__ | __[BNN](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bnn.py)__ | __[Markovitz](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/best_markowitz.py)__ |
 | __[CRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/crp.py)__ | __[Exponential Gradient](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/eg.py)__ | __[PAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/pamr.py)__ | __[CORN](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/corn.py)__ | __[Kelly](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/kelly.py)__ |
@@ -36,6 +36,7 @@ Several state-of-the-art algorithms are implemented, based on my understanding o
 | __[DCRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/dynamic_crp.py)__ || __[RMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rmr.py)__ || __[ONS](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ons.py)__ |
 ||| __[CWMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/cwmr.py)__ || __[MPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/mpt.py)__ |
 ||| __[WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)__ |||
+||| __[RPRT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rprt.py)__ |||
 
 </div>
 
