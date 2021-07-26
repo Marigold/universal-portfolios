@@ -1,13 +1,14 @@
-from ..algo import Algo
-from .. import tools
 import numpy as np
+
+from .. import tools
+from ..algo import Algo
 
 
 class BAH(Algo):
-    """ Buy and hold strategy. Buy equal amount of each stock in the beginning and hold them
-    forever.  """
+    """Buy and hold strategy. Buy equal amount of each stock in the beginning and hold them
+    forever."""
 
-    PRICE_TYPE = 'raw'
+    PRICE_TYPE = "raw"
 
     def __init__(self, b=None):
         """
@@ -17,9 +18,9 @@ class BAH(Algo):
         self.b = b
 
     def weights(self, S):
-        """ Weights function optimized for performance. """
+        """Weights function optimized for performance."""
         if self.b is None:
-            b = np.array([0 if s == 'CASH' else 1 for s in S.columns])
+            b = np.array([0 if s == "CASH" else 1 for s in S.columns])
             b = b / b.sum()
         else:
             b = self.b
@@ -30,10 +31,10 @@ class BAH(Algo):
         # normalize
         w = w.div(w.sum(axis=1), axis=0)
 
-        w.iloc[0] = 1./S.shape[1]
+        w.iloc[0] = 1.0 / S.shape[1]
 
         return w
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tools.quickrun(BAH())

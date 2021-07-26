@@ -1,26 +1,42 @@
-from ..algo import Algo
+import logging
+
 import numpy as np
 import pandas as pd
+from cvxopt import matrix, solvers
+from scipy import optimize
+from six import string_types
 from sklearn import covariance
 from sklearn.base import BaseEstimator
-from scipy import optimize
-from cvxopt import solvers, matrix
-from six import string_types
-import logging
+
 from .. import tools
+from ..algo import Algo
 from .estimators import *
-solvers.options['show_progress'] = False
+
+solvers.options["show_progress"] = False
 
 
 class MPT(Algo):
-    """ Modern portfolio theory approach. See https://en.wikipedia.org/wiki/Modern_portfolio_theory.
-    """
+    """Modern portfolio theory approach. See https://en.wikipedia.org/wiki/Modern_portfolio_theory."""
 
-    PRICE_TYPE = 'ratio'
+    PRICE_TYPE = "ratio"
 
-    def __init__(self, window=None, mu_estimator=None, cov_estimator=None, mu_window=None, cov_window=None,
-                 min_history=None, bounds=None, max_leverage=1., method='mpt', q=0.01, gamma=0.,
-                 optimizer_options=None, force_weights=None, **kwargs):
+    def __init__(
+        self,
+        window=None,
+        mu_estimator=None,
+        cov_estimator=None,
+        mu_window=None,
+        cov_window=None,
+        min_history=None,
+        bounds=None,
+        max_leverage=1.0,
+        method="mpt",
+        q=0.01,
+        gamma=0.0,
+        optimizer_options=None,
+        force_weights=None,
+        **kwargs,
+    ):
         """
         :param window: Window for calculating mean and variance. Use None for entire history.
         :param mu_estimator: TODO
@@ -45,25 +61,29 @@ class MPT(Algo):
         self.optimizer_options = optimizer_options or {}
 
         if bounds and max_leverage != 1:
-            raise NotImplemented('max_leverage cannot be used with bounds, consider removing max_leverage and replace it with bounds1')
+            raise NotImplemented(
+                "max_leverage cannot be used with bounds, consider removing max_leverage and replace it with bounds1"
+            )
 
         if cov_estimator is None:
-            cov_estimator = 'empirical'
+            cov_estimator = "empirical"
 
         if isinstance(cov_estimator, string_types):
-            if cov_estimator == 'empirical':
+            if cov_estimator == "empirical":
                 # use pandas covariance in init_step
                 cov_estimator = covariance.EmpiricalCovariance()
-            elif cov_estimator == 'ledoit-wolf':
+            elif cov_estimator == "ledoit-wolf":
                 cov_estimator = covariance.LedoitWolf()
-            elif cov_estimator == 'graph-lasso':
+            elif cov_estimator == "graph-lasso":
                 cov_estimator = covariance.GraphLasso()
-            elif cov_estimator == 'oas':
+            elif cov_estimator == "oas":
                 cov_estimator = covariance.OAS()
-            elif cov_estimator == 'single-index':
+            elif cov_estimator == "single-index":
                 cov_estimator = SingleIndexCovariance()
             else:
-                raise NotImplemented('Unknown covariance estimator {}'.format(cov_estimator))
+                raise NotImplemented(
+                    "Unknown covariance estimator {}".format(cov_estimator)
+                )
 
         # handle sklearn models
         if isinstance(cov_estimator, BaseEstimator):
@@ -73,18 +93,18 @@ class MPT(Algo):
             mu_estimator = SharpeEstimator()
 
         if isinstance(mu_estimator, string_types):
-            if mu_estimator == 'historical':
+            if mu_estimator == "historical":
                 mu_estimator = HistoricalEstimator(window=mu_window)
-            elif mu_estimator == 'sharpe':
+            elif mu_estimator == "sharpe":
                 mu_estimator = SharpeEstimator()
             else:
-                raise NotImplemented('Unknown mu estimator {}'.format(mu_estimator))
+                raise NotImplemented("Unknown mu estimator {}".format(mu_estimator))
 
         self.cov_estimator = cov_estimator
         self.mu_estimator = mu_estimator
 
     def init_weights(self, columns):
-        b = np.array([0. if c == 'CASH' else 1. for c in columns])
+        b = np.array([0.0 if c == "CASH" else 1.0 for c in columns])
         return b / b.sum()
 
     def init_step(self, X):
@@ -94,13 +114,16 @@ class MPT(Algo):
 
         # replace covariance estimator with empirical covariance and precompute it
         if isinstance(self.cov_estimator, covariance.EmpiricalCovariance):
+
             class EmpiricalCov(object):
-                """ Behave like sklearn covariance estimator. """
+                """Behave like sklearn covariance estimator."""
 
                 allow_nan = True
 
                 def __init__(self, X, window, min_history):
-                    self.C = tools.rolling_cov_pairwise(X, window=window, min_periods=min_history)
+                    self.C = tools.rolling_cov_pairwise(
+                        X, window=window, min_periods=min_history
+                    )
 
                 def fit(self, X):
                     # get sigma matrix
@@ -113,7 +136,9 @@ class MPT(Algo):
                     self.covariance_ = sigma.values
                     return self
 
-            self.cov_estimator = CovarianceEstimator(EmpiricalCov(X, self.cov_estimator.window, self.min_history))
+            self.cov_estimator = CovarianceEstimator(
+                EmpiricalCov(X, self.cov_estimator.window, self.min_history)
+            )
 
     def estimate_mu_sigma_sh(self, S):
         X = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
@@ -122,7 +147,7 @@ class MPT(Algo):
         mu = self.mu_estimator.fit(X, sigma)
         vol = np.sqrt(np.diag(sigma))
         sh = (mu - self.mu_estimator.rfr) / vol
-        sh[vol == 0] = 0.
+        sh[vol == 0] = 0.0
 
         return mu, sigma, sh
 
@@ -135,7 +160,7 @@ class MPT(Algo):
         return np.sqrt((w @ sigma @ w))
 
     def portfolio_gradient(self, last_b, mu, sigma, q=None, decompose=False):
-        """ Calculate gradient for given objective function. Can be used to determine which stocks
+        """Calculate gradient for given objective function. Can be used to determine which stocks
         should be added / removed from portfolio.
         """
         q = q or self.q
@@ -146,9 +171,9 @@ class MPT(Algo):
         p_vol = np.sqrt(w @ sigma @ w)
         p_mu = w @ mu
 
-        if self.method == 'sharpe':
+        if self.method == "sharpe":
             grad_sharpe = mu.T / p_vol
-            grad_vol = -sigma * w.T * p_mu / p_vol**3
+            grad_vol = -sigma * w.T * p_mu / p_vol ** 3
 
             grad_sharpe = pd.Series(np.array(grad_sharpe).ravel(), index=last_b.index)
             grad_vol = pd.Series(np.array(grad_vol).ravel(), index=last_b.index)
@@ -157,24 +182,28 @@ class MPT(Algo):
                 return grad_sharpe, grad_vol
             else:
                 return grad_sharpe + grad_vol
-        elif self.method == 'mpt':
+        elif self.method == "mpt":
             grad_mu = pd.Series(np.array(mu).ravel(), index=last_b.index)
             grad_sigma = pd.Series((sigma @ w).ravel(), index=last_b.index)
-            grad_vol = pd.Series(np.array(-sigma @ w / p_vol).ravel(), index=last_b.index)
+            grad_vol = pd.Series(
+                np.array(-sigma @ w / p_vol).ravel(), index=last_b.index
+            )
 
             if decompose:
                 return grad_mu, grad_vol
             else:
                 return q * grad_mu - 2 * grad_sigma
         else:
-            raise NotImplemented('Method {} not yet implemented'.format(self.method))
+            raise NotImplemented("Method {} not yet implemented".format(self.method))
 
     def step(self, x, last_b, history, **kwargs):
         # get sigma and mu estimates
         X = history
 
-        if self.bounds.keys() - X.columns - {'all'}:
-            raise Exception(f'Bounds for undefined symbols {self.bounds.keys() - X.columns - set(["all"])}')
+        if self.bounds.keys() - X.columns - {"all"}:
+            raise Exception(
+                f'Bounds for undefined symbols {self.bounds.keys() - X.columns - set(["all"])}'
+            )
 
         # remove assets with NaN values
         # cov_est = self.cov_estimator.cov_est
@@ -186,11 +215,15 @@ class MPT(Algo):
         # check NA assets
         na_assets = (X.notnull().sum() < self.min_history).values
         if any(na_assets):
-            raise Exception('Assets containing null values: {}'.format(X.columns[na_assets]))
+            logging.warning(
+                "Assets containing null values: {}".format(X.columns[na_assets])
+            )
+            # raise Exception('Assets containing null values: {}'.format(X.columns[na_assets]))
 
-        X = X.iloc[:, ~na_assets]
-        x = x[~na_assets]
-        last_b = last_b[~na_assets]
+        # TODO: should we enable this?
+        # X = X.iloc[:, ~na_assets]
+        # x = x[~na_assets]
+        # last_b = last_b[~na_assets]
 
         # get sigma and mu estimations
         sigma = self.cov_estimator.fit(X - 1)
@@ -210,27 +243,41 @@ class MPT(Algo):
         else:
             gamma = gamma.reindex(x.index)
             gamma_null = gamma[gamma.isnull()]
-            assert len(gamma_null) == 0, 'gamma is missing values for {}'.format(gamma_null.index)
+            assert len(gamma_null) == 0, "gamma is missing values for {}".format(
+                gamma_null.index
+            )
 
         # find optimal portfolio
         last_b = pd.Series(last_b, index=x.index, name=x.name)
-        b = self.optimize(mu, sigma, q=self.q, gamma=gamma, max_leverage=self.max_leverage, last_b=last_b, **kwargs)
-        b = pd.Series(b, index=X.columns).reindex(history.columns, fill_value=0.)
+        b = self.optimize(
+            mu,
+            sigma,
+            q=self.q,
+            gamma=gamma,
+            max_leverage=self.max_leverage,
+            last_b=last_b,
+            **kwargs,
+        )
+        b = pd.Series(b, index=X.columns).reindex(history.columns, fill_value=0.0)
 
         return b
 
     def optimize(self, mu, sigma, q, gamma, max_leverage, last_b, **kwargs):
-        if self.method == 'mpt':
+        if self.method == "mpt":
             return self._optimize_mpt(mu, sigma, q, gamma, last_b, **kwargs)
-        elif self.method == 'sharpe':
-            return self._optimize_sharpe(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
-        elif self.method == 'variance':
-            return self._optimize_variance(mu, sigma, q, gamma, max_leverage, last_b, **kwargs)
+        elif self.method == "sharpe":
+            return self._optimize_sharpe(
+                mu, sigma, q, gamma, max_leverage, last_b, **kwargs
+            )
+        elif self.method == "variance":
+            return self._optimize_variance(
+                mu, sigma, q, gamma, max_leverage, last_b, **kwargs
+            )
         else:
-            raise Exception('Unknown method {}'.format(self.method))
+            raise Exception("Unknown method {}".format(self.method))
 
     def _optimize_sharpe(self, mu, sigma, q, gamma, max_leverage, last_b):
-        """ Maximize sharpe ratio b.T * mu / sqrt(b.T * sigma * b + q) """
+        """Maximize sharpe ratio b.T * mu / sqrt(b.T * sigma * b + q)"""
         mu = np.matrix(mu)
         sigma = np.matrix(sigma)
 
@@ -243,21 +290,29 @@ class MPT(Algo):
             return -mu * bb.T / np.sqrt(bb * sigma * bb.T + q) + fee_penalization
 
         if self.allow_cash:
-            cons = ({'type': 'ineq', 'fun': lambda b: max_leverage - sum(b)},)
+            cons = ({"type": "ineq", "fun": lambda b: max_leverage - sum(b)},)
         else:
-            cons = ({'type': 'eq', 'fun': lambda b: max_leverage - sum(b)},)
+            cons = ({"type": "eq", "fun": lambda b: max_leverage - sum(b)},)
 
-        bounds = [(0., max_leverage)] * len(last_b)
+        bounds = [(0.0, max_leverage)] * len(last_b)
 
         if self.max_weight:
-            bounds = [(max(l, -self.max_weight), min(u, self.max_weight)) for l, u in bounds]
+            bounds = [
+                (max(l, -self.max_weight), min(u, self.max_weight)) for l, u in bounds
+            ]
 
         x0 = last_b
         MAX_TRIES = 3
 
         for _ in range(MAX_TRIES):
-            res = optimize.minimize(maximize, x0, bounds=bounds,
-                                    constraints=cons, method='slsqp', options=self.optimizer_options)
+            res = optimize.minimize(
+                maximize,
+                x0,
+                bounds=bounds,
+                constraints=cons,
+                method="slsqp",
+                options=self.optimizer_options,
+            )
 
             # it is possible that slsqp gives out-of-bounds error, try it again with different x0
             if np.any(res.x < -0.01) or np.any(res.x > max_leverage + 0.01):
@@ -270,7 +325,7 @@ class MPT(Algo):
         return res.x
 
     def _optimize_mpt(self, mu, sigma, q, gamma, last_b):
-        """ Minimize b.T * sigma * b - q * b.T * mu """
+        """Minimize b.T * sigma * b - q * b.T * mu"""
         assert (mu.index == sigma.columns).all()
         assert (mu.index == last_b.index).all()
 
@@ -283,8 +338,8 @@ class MPT(Algo):
 
         # portfolio constraints
         bounds = self.bounds or {}
-        if 'all' not in bounds:
-            bounds['all'] = (0, 1)
+        if "all" not in bounds:
+            bounds["all"] = (0, 1)
 
         G = []
         h = []
@@ -294,7 +349,7 @@ class MPT(Algo):
                 continue
 
             # constraints
-            lower, upper = bounds.get(sym, bounds['all'])
+            lower, upper = bounds.get(sym, bounds["all"])
             if lower is not None:
                 r = np.zeros(n)
                 r[i] = -1
@@ -330,8 +385,8 @@ class MPT(Algo):
         return b
 
     def _optimize_variance(self, mu, sigma, q, gamma, max_leverage, last_b):
-        """ Minimize b.T * sigma * b subject to b.T * mu >= q. If you find no such solution,
-        just maximize return. """
+        """Minimize b.T * sigma * b subject to b.T * mu >= q. If you find no such solution,
+        just maximize return."""
         sigma = np.matrix(sigma)
         mu = np.matrix(mu)
 
@@ -344,7 +399,7 @@ class MPT(Algo):
             h = matrix(np.r_[np.zeros(n), -q])
 
             try:
-                if max_leverage is None or max_leverage == float('inf'):
+                if max_leverage is None or max_leverage == float("inf"):
                     sol = solvers.qp(P, qq, G, h)
                 else:
                     if self.allow_cash:
@@ -356,7 +411,7 @@ class MPT(Algo):
                         b = matrix(np.array([max_leverage]))
                         sol = solvers.qp(P, qq, G, h, A, b, initvals=last_b)
 
-                if sol['status'] == 'unknown':
+                if sol["status"] == "unknown":
                     raise ValueError()
 
             except ValueError:
@@ -368,7 +423,7 @@ class MPT(Algo):
 
                 sol = solvers.qp(P, qq, G, h)
 
-            return np.squeeze(sol['x'])
+            return np.squeeze(sol["x"])
 
         b = maximize(mu, sigma, q)
         return b
@@ -377,12 +432,13 @@ class MPT(Algo):
 # regularization parameter for singular cases
 ALPHA = 0.000001
 
+
 def _maximize(mu, sigma, q, n, G, h, symbols, last_b, force_weights):
     P = matrix(2 * (sigma + ALPHA * np.eye(n)))
     q = matrix(-q * mu + 2 * ALPHA * last_b.values)
 
     A = matrix(np.ones(n)).T
-    b = matrix(np.array([1.]))
+    b = matrix(np.array([1.0]))
 
     for sym, w in force_weights.items():
         ix = symbols.index(sym)
@@ -393,11 +449,14 @@ def _maximize(mu, sigma, q, n, G, h, symbols, last_b, force_weights):
 
     sol = solvers.qp(P, q, G, h, A, b, initvals=last_b)
 
-    if sol['status'] != 'optimal':
-        logging.warning("Solution not found for {}, using last weights".format(last_b.name))
+    if sol["status"] != "optimal":
+        logging.warning(
+            "Solution not found for {}, using last weights".format(last_b.name)
+        )
         return last_b
 
-    return np.squeeze(sol['x'])
+    return np.squeeze(sol["x"])
+
 
 def _maximize_with_penalization(b, last_b, mu, sigma, q, gamma):
     n = len(mu)
@@ -409,11 +468,11 @@ def _maximize_with_penalization(b, last_b, mu, sigma, q, gamma):
     qq = 2 * sigma * matrix(last_b) - q * mu + matrix(gamma * c)
 
     G = matrix(np.r_[-np.diag(c), np.eye(n), -np.eye(n)])
-    h = matrix(np.r_[np.zeros(n), 1. - last_b, last_b])
+    h = matrix(np.r_[np.zeros(n), 1.0 - last_b, last_b])
 
     A = matrix(np.ones(n)).T
-    b = matrix([1. - sum(last_b)])
+    b = matrix([1.0 - sum(last_b)])
 
     sol = solvers.qp(P, qq, G, h, A, b, initvals=np.zeros(n))
 
-    return np.squeeze(sol['x']) + np.array(last_b)
+    return np.squeeze(sol["x"]) + np.array(last_b)

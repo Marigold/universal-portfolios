@@ -1,11 +1,13 @@
-from ..algo import Algo
-from .. import tools
-import numpy as np
 import warnings
+
+import numpy as np
+
+from .. import tools
+from ..algo import Algo
 
 
 class Anticor(Algo):
-    """ Anticor (anti-correlation) is a heuristic portfolio selection algorithm.
+    """Anticor (anti-correlation) is a heuristic portfolio selection algorithm.
     It adopts the consistency of positive lagged cross-correlation and negative
     autocorrelation to adjust the portfolio. Eventhough it has no known bounds and
     hence is not considered to be universal, it has very strong empirical results.
@@ -27,12 +29,11 @@ class Anticor(Algo):
         self.window = window
         self.c_version = c_version
 
-
     def weights(self, X):
         window = self.window
         port = X
         n, m = port.shape
-        weights = 1. / m * np.ones(port.shape)
+        weights = 1.0 / m * np.ones(port.shape)
 
         CORR, EX = tools.rolling_corr(port, port.shift(window), window=window)
 
@@ -40,7 +41,9 @@ class Anticor(Algo):
             try:
                 from scipy import weave
             except ImportError:
-                warnings.warn('scipy.weave is not available in python3, falling back to python version')
+                warnings.warn(
+                    "scipy.weave is not available in python3, falling back to python version"
+                )
                 self.c_version = False
 
         if self.c_version is False:
@@ -53,7 +56,8 @@ class Anticor(Algo):
 
                 for i in range(m):
                     for j in range(m):
-                        if i == j: continue
+                        if i == j:
+                            continue
 
                         if mu[i] > mu[j] and M[i, j] > 0:
                             claim[i, j] += M[i, j]
@@ -64,16 +68,19 @@ class Anticor(Algo):
                                 claim[i, j] += abs(M[j, j])
 
                 # calculate transfer
-                transfer = claim * 0.
+                transfer = claim * 0.0
                 for i in range(m):
                     total_claim = sum(claim[i, :])
                     if total_claim != 0:
                         transfer[i, :] = weights[t, i] * claim[i, :] / total_claim
 
                 # update weights
-                weights[t + 1, :] = weights[t, :] + np.sum(transfer, axis=0) - np.sum(transfer, axis=1)
+                weights[t + 1, :] = (
+                    weights[t, :] + np.sum(transfer, axis=0) - np.sum(transfer, axis=1)
+                )
 
         else:
+
             def get_weights_c(c, mu, w):
                 code = """
                 int t,i,j;
@@ -124,12 +131,12 @@ class Anticor(Algo):
                     }
                 }
                 """
-                return weave.inline(code, ['c', 'mu', 'w'])
+                return weave.inline(code, ["c", "mu", "w"])
 
             get_weights_c(CORR, EX, weights)
 
         return weights
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tools.quickrun(Anticor())

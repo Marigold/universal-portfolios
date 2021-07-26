@@ -18,7 +18,7 @@ Several state-of-the-art algorithms are implemented, based on my understanding o
 
 ## Outline of this package
 
-* `examples` contains two Python Notebooks: 
+* `examples` contains two Python Notebooks:
    - [Online Portfolios](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb) : explains the basic use of the library. Script sequence, various options, method arguments, and a strategy template to get you started.
    - [Modern Portfolio Theory](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/modern-portfolio-theory.ipynb) : goes deeper into the OLPS principle and the tools developped in this library to approach it.
 
@@ -47,7 +47,7 @@ Several state-of-the-art algorithms are implemented, based on my understanding o
 
 
 ## Quick Start
- 
+
 ```python
 from universal import tools
 from universal.algos import CRP
@@ -71,6 +71,8 @@ Note : If you don't want to install the package locally, you can run both notebo
 
 ## Installation
 
+Only Python 3 is supported
+
 ```
 pip install universal-portfolios
 ```
@@ -85,6 +87,17 @@ Exporting dependencies to the `requirements.txt` file is needed for mybinder.org
 poetry export --without-hashes -f requirements.txt > requirements.txt
 poetry export --dev --without-hashes -f requirements.txt > test-requirements.txt
 ```
+
+### Formatting
+
+We use pre-commit hook to automatically format code and check for linting errors before each commit. If the checks fail you need to resolve the errors and amend the change set.
+
+To setup the pre-commit hooks you need to [install it first](https://pre-commit.com/#installation) and then enter the project root directory and invoke the command (only once!):
+
+```
+pre-commit install
+```
+
 
 ## Running Tests
 
@@ -103,4 +116,4 @@ _Thank you for your contributions!_
 ## Disclaimer
 
 This software is for educational purposes only and is far from any production environment. Do not risk money which you are afraid to lose.
-Use the software at your own risk. The authors assume no responsibility for your trading results. 
+Use the software at your own risk. The authors assume no responsibility for your trading results.
