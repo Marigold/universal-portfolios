@@ -1,18 +1,17 @@
-import sys
-import numpy as np
-import pandas as pd
+import copy
 import itertools
 import logging
-import inspect
-import copy
-from .result import AlgoResult, ListResult
+
+import numpy as np
+import pandas as pd
 from scipy.special import comb
+
 from . import tools
-from scipy.special import comb
+from .result import AlgoResult, ListResult
 
 
 class Algo(object):
-    """ Base class for algorithm calculating weights for online portfolio.
+    """Base class for algorithm calculating weights for online portfolio.
     You have to subclass either step method to calculate weights sequentially
     or weights method, which does it at once. weights method might be useful
     for better performance when using matrix calculation, but be careful about
@@ -29,33 +28,33 @@ class Algo(object):
     #    ratio:  pt / pt-1
     #    log:    log(pt / pt-1)
     #    raw:    pt
-    PRICE_TYPE = 'ratio'
+    PRICE_TYPE = "ratio"
 
     def __init__(self, min_history=None, frequency=1, **kwargs):
-        """ Subclass to define algo specific parameters here.
+        """Subclass to define algo specific parameters here.
         :param min_history: If not None, use initial weights for first min_window days. Use
             this if the algo needs some history for proper parameter estimation.
         :param frequency: algorithm should trade every `frequency` periods
         """
         self.min_history = min_history or 0
-        self.frequency   = frequency
-        self.trx_fee_pct = kwargs.get('trx_fee_pct', 0)
-        self.trx_fee_n   = kwargs.get('trx_fee_n', 10)
-    
+        self.frequency = frequency
+        self.trx_fee_pct = kwargs.get("trx_fee_pct", 0)
+        self.trx_fee_n = kwargs.get("trx_fee_n", 10)
+
     def init_weights(self, columns):
-        """ Set initial weights.
+        """Set initial weights.
         :param m: Number of assets.
         """
         return np.zeros(len(columns))
 
     def init_step(self, X):
-        """ Called before step method. Use to initialize persistent variables.
+        """Called before step method. Use to initialize persistent variables.
         :param X: Entire stock returns history.
         """
         pass
 
     def step(self, x, last_b, history=None):
-        """ Calculate new portfolio weights. If history parameter is omited, step
+        """Calculate new portfolio weights. If history parameter is omited, step
         method gets passed just parameters `x` and `last_b`. This significantly
         increases performance.
         :param x: Last returns.
@@ -63,15 +62,15 @@ class Algo(object):
         :param history: All returns up to now. You can omit this parameter to increase
             performance.
         """
-        raise NotImplementedError('Subclass must implement this!')
+        raise NotImplementedError("Subclass must implement this!")
 
     def weights(self, X, min_history=None, log_progress=True):
-        """ Return weights. Call step method to update portfolio sequentially. Subclass
-        this method only at your own risk. """
+        """Return weights. Call step method to update portfolio sequentially. Subclass
+        this method only at your own risk."""
         min_history = self.min_history if min_history is None else min_history
 
         # init
-        B = X.copy() * 0.
+        B = X.copy() * 0.0
         last_b = self.init_weights(X.columns)
         if isinstance(last_b, np.ndarray):
             last_b = pd.Series(last_b, X.columns)
@@ -94,13 +93,13 @@ class Algo(object):
                 continue
 
             # predict for t+1
-            history = X.iloc[:t+1]
+            history = X.iloc[: t + 1]
             last_b = self.step(x, last_b, history)
 
             # Transaction Costs Optimization
             if self.trx_fee_pct > 0:
                 last_b = self.update_tco(x, last_b)
-                
+
             # convert last_b to suitable format if needed
             if type(last_b) == np.matrix:
                 # remove dimension
@@ -111,44 +110,47 @@ class Algo(object):
                 tools.log_progress(t, len(X), by=10)
 
         return B
-    
+
     def update_tco(self, b, x_pred):
         """
         Transaction Costs Optimization
         Paper : https://ink.library.smu.edu.sg/cgi/viewcontent.cgi?referer=&httpsredir=1&article=4761&context=sis_research
         """
 
-        lambd = 10*self.trx_fee_pct
+        lambd = 10 * self.trx_fee_pct
 
         # last price adjusted weights
         updated_b = np.multiply(b, x_pred) / np.dot(b, x_pred)
 
         # Calculate variables
-        vt   = x_pred / np.dot(updated_b, x_pred)
+        vt = x_pred / np.dot(updated_b, x_pred)
         v_t_ = np.dot(1, vt) / self.window
 
         # Update portfolio
         b_1 = self.trx_fee_n * (vt - np.dot(v_t_, 1))
-        b_  = b_1 + np.sign(b_1)*np.maximum(np.zeros(len(b_1)), np.abs(b_1) - lambd)
+        b_ = b_1 + np.sign(b_1) * np.maximum(np.zeros(len(b_1)), np.abs(b_1) - lambd)
 
         # project it onto simplex
         return tools.simplex_proj(y=b_)
 
     def _split_index(self, ix, nr_chunks, freq):
-        """ Split index into chunks so that each chunk except of the last has length
-        divisible by freq. """
+        """Split index into chunks so that each chunk except of the last has length
+        divisible by freq."""
         chunksize = int(len(ix) / freq / nr_chunks + 1) * freq
-        return [ix[i*chunksize:(i+1)*chunksize] for i in range(int(len(ix) / chunksize + 1))]
+        return [
+            ix[i * chunksize : (i + 1) * chunksize]
+            for i in range(int(len(ix) / chunksize + 1))
+        ]
 
     def run(self, S, n_jobs=1, log_progress=True):
-        """ Run algorithm and get weights.
+        """Run algorithm and get weights.
         :params S: Absolute stock prices. DataFrame with stocks in columns.
         :param show_progress: Log computation progress. Works only for algos with
             defined step method.
         :param n_jobs: run step method in parallel (step method can't depend on last weights)
         """
         if log_progress:
-            logging.debug('Running {}...'.format(self.__class__.__name__))
+            logging.debug("Running {}...".format(self.__class__.__name__))
 
         if isinstance(S, ListResult):
             P = S.to_dataframe()
@@ -162,15 +164,25 @@ class Algo(object):
         if n_jobs == 1:
             try:
                 B = self.weights(X, log_progress=log_progress)
-            except TypeError:   # weights are missing log_progress parameter
+            except TypeError:  # weights are missing log_progress parameter
                 B = self.weights(X)
         else:
             with tools.mp_pool(n_jobs) as pool:
-                ix_blocks = self._split_index(X.index, pool._processes * 2, self.frequency)
-                min_histories = np.maximum(np.cumsum([0] + list(map(len, ix_blocks[:-1]))) - 1, self.min_history)
+                ix_blocks = self._split_index(
+                    X.index, pool._processes * 2, self.frequency
+                )
+                min_histories = np.maximum(
+                    np.cumsum([0] + list(map(len, ix_blocks[:-1]))) - 1,
+                    self.min_history,
+                )
 
-                B_blocks = pool.map(_parallel_weights, [(self, X.loc[:ix_block[-1]], min_history, log_progress)
-                                    for ix_block, min_history in zip(ix_blocks, min_histories)])
+                B_blocks = pool.map(
+                    _parallel_weights,
+                    [
+                        (self, X.loc[: ix_block[-1]], min_history, log_progress)
+                        for ix_block, min_history in zip(ix_blocks, min_histories)
+                    ],
+                )
 
             # join weights to one dataframe
             B = pd.concat([B_blocks[i].loc[ix] for i, ix in enumerate(ix_blocks)])
@@ -180,7 +192,7 @@ class Algo(object):
             B = pd.DataFrame(B, index=P.index, columns=P.columns)
 
         if log_progress:
-            logging.debug('{} finished successfully.'.format(self.__class__.__name__))
+            logging.debug("{} finished successfully.".format(self.__class__.__name__))
 
         # if we are aggregating strategies, combine weights from strategies
         # and use original assets
@@ -188,10 +200,10 @@ class Algo(object):
             B = sum(result.B.mul(B[col], axis=0) for result, col in zip(S, B.columns))
             return AlgoResult(S[0].X, B)
         else:
-            return AlgoResult(self._convert_prices(S, 'ratio'), B)
+            return AlgoResult(self._convert_prices(S, "ratio"), B)
 
     def next_weights(self, S, last_b, **kwargs):
-        """ Calculate weights for next day. """
+        """Calculate weights for next day."""
         history = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
         x = history.iloc[-1]
 
@@ -200,19 +212,20 @@ class Algo(object):
         return pd.Series(b, index=S.columns)
 
     def run_subsets(self, S, r, generator=False):
-        """ Run algorithm on all stock subsets of length r. Note that number of such tests can be
+        """Run algorithm on all stock subsets of length r. Note that number of such tests can be
         very large.
         :param S: stock prices
         :param r: number of stocks in a subset
         :param generator: yield results
         """
+
         def subset_generator():
             total_subsets = comb(S.shape[1], r)
 
             for i, S_sub in enumerate(tools.combinations(S, r)):
                 # run algorithm on given subset
                 result = self.run(S_sub, log_progress=False)
-                name = ', '.join(S_sub.columns.astype(str))
+                name = ", ".join(S_sub.columns.astype(str))
 
                 # log progress by 1 pcts
                 tools.log_progress(i, total_subsets, by=1)
@@ -232,13 +245,13 @@ class Algo(object):
 
     @classmethod
     def _convert_prices(self, S, method, replace_missing=False):
-        """ Convert prices to format suitable for weight or step function.
+        """Convert prices to format suitable for weight or step function.
         Available price types are:
             ratio:  pt / pt_1
             log:    log(pt / pt_1)
             raw:    pt (normalized to start with 1)
         """
-        if method == 'raw':
+        if method == "raw":
             # normalize prices so that they start with 1.
             r = {}
             for name, s in S.items():
@@ -247,31 +260,31 @@ class Algo(object):
             X = pd.DataFrame(r)
 
             if replace_missing:
-                X.iloc[0] = 1.
-                X = X.fillna(method='ffill')
+                X.iloc[0] = 1.0
+                X = X.fillna(method="ffill")
 
             return X
 
-        elif method == 'absolute':
+        elif method == "absolute":
             return S
 
-        elif method in ('ratio', 'log'):
+        elif method in ("ratio", "log"):
             # be careful about NaN values
-            X = S / S.shift(1).fillna(method='ffill')
+            X = S / S.shift(1).fillna(method="ffill")
             for name, s in X.iteritems():
-                X[name].iloc[s.index.get_loc(s.first_valid_index()) - 1] = 1.
+                X[name].iloc[s.index.get_loc(s.first_valid_index()) - 1] = 1.0
 
             if replace_missing:
-                X = X.fillna(1.)
+                X = X.fillna(1.0)
 
-            return np.log(X) if method == 'log' else X
+            return np.log(X) if method == "log" else X
 
         else:
-            raise ValueError('invalid price conversion method')
+            raise ValueError("invalid price conversion method")
 
     @classmethod
     def run_combination(cls, S, **kwargs):
-        """ Get equity of algo using all combinations of parameters. All
+        """Get equity of algo using all combinations of parameters. All
         values in lists specified in kwargs will be optimized. Other types
         will be passed as they are to algo __init__ (like numbers, strings,
         tuples).
@@ -291,10 +304,14 @@ class Algo(object):
         if isinstance(S, ListResult):
             S = S.to_dataframe()
 
-        n_jobs = kwargs.pop('n_jobs', -1)
+        n_jobs = kwargs.pop("n_jobs", -1)
 
         # extract simple parameters
-        simple_params = {k: kwargs.pop(k) for k in tuple(kwargs.keys()) if not isinstance(kwargs[k], list)}
+        simple_params = {
+            k: kwargs.pop(k)
+            for k in tuple(kwargs.keys())
+            if not isinstance(kwargs[k], list)
+        }
 
         # iterate over all combinations
         names = []
@@ -307,13 +324,17 @@ class Algo(object):
             params_to_try.append(all_params)
 
             # create name with format param:value
-            name = ','.join([str(k) + '=' + str(v) for k, v in params.items()])
+            name = ",".join([str(k) + "=" + str(v) for k, v in params.items()])
             names.append(name)
 
         # try all combinations in parallel
         with tools.mp_pool(n_jobs) as pool:
-            results = pool.map(_run_algo_params, [(S, cls, all_params) for all_params in params_to_try])
-        results = map(_run_algo_params, [(S, cls, all_params) for all_params in params_to_try])
+            results = pool.map(
+                _run_algo_params, [(S, cls, all_params) for all_params in params_to_try]
+            )
+        results = map(
+            _run_algo_params, [(S, cls, all_params) for all_params in params_to_try]
+        )
 
         return ListResult(results, names)
 
@@ -325,11 +346,11 @@ def _parallel_weights(tuple_args):
     self, X, min_history, log_progress = tuple_args
     try:
         return self.weights(X, min_history=min_history, log_progress=log_progress)
-    except TypeError:   # weights are missing log_progress parameter
+    except TypeError:  # weights are missing log_progress parameter
         return self.weights(X, min_history=min_history)
 
 
 def _run_algo_params(tuple_args):
     S, cls, params = tuple_args
-    logging.debug('Run combination of parameters: {}'.format(params))
+    logging.debug("Run combination of parameters: {}".format(params))
     return cls(**params).run(S)

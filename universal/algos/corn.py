@@ -1,10 +1,12 @@
-from ..algo import Algo
-from .. import tools
 import numpy as np
 import pandas as pd
+from cvxopt import matrix, solvers
 from numpy import matrix
-from cvxopt import solvers, matrix
-solvers.options['show_progress'] = False
+
+from .. import tools
+from ..algo import Algo
+
+solvers.options["show_progress"] = False
 
 
 class CORN(Algo):
@@ -23,7 +25,7 @@ class CORN(Algo):
         http://www.cais.ntu.edu.sg/~chhoi/paper_pdf/TIST-CORN.pdf
     """
 
-    PRICE_TYPE = 'ratio'
+    PRICE_TYPE = "ratio"
     REPLACE_MISSING = True
 
     def __init__(self, window=5, rho=0.1, fast_version=True):
@@ -34,10 +36,10 @@ class CORN(Algo):
                              more memory.
         """
         # input check
-        if not(-1 <= rho <= 1):
-            raise ValueError('rho must be between -1 and 1')
-        if not(window >= 2):
-            raise ValueError('window must be greater than 2')
+        if not (-1 <= rho <= 1):
+            raise ValueError("rho must be between -1 and 1")
+        if not (window >= 2):
+            raise ValueError("window must be greater than 2")
 
         super(CORN, self).__init__()
         self.window = window
@@ -47,11 +49,9 @@ class CORN(Algo):
         # assign step method dynamically
         self.step = self.step_fast if self.fast_version else self.step_slow
 
-
     def init_weights(self, columns):
         m = len(columns)
         return np.ones(m) / m
-
 
     def init_step(self, X):
         if self.fast_version:
@@ -62,7 +62,6 @@ class CORN(Algo):
             self.X_flat = pd.concat(foo, axis=1)
             self.X = X
             self.t = self.min_history - 1
-
 
     def step_slow(self, x, last_b, history):
         if len(history) <= self.window:
@@ -76,8 +75,8 @@ class CORN(Algo):
             # calculate correlation with predecesors
             X_t = history.iloc[-window:].values.flatten()
             for i in range(window, len(history)):
-                X_i = history.iloc[i-window:i-1].values.flatten()
-                if np.corrcoef(X_t, X_i)[0,1] >= self.rho:
+                X_i = history.iloc[i - window : i - 1].values.flatten()
+                if np.corrcoef(X_t, X_i)[0, 1] >= self.rho:
                     indices.append(i)
 
             # calculate optimal portfolio
@@ -89,7 +88,6 @@ class CORN(Algo):
                 b = self.optimal_weights(C)
 
             return b
-
 
     def step_fast(self, x, last_b, history):
         # iterate time
@@ -103,8 +101,8 @@ class CORN(Algo):
             m = len(x)
 
             X_t = self.X_flat.iloc[self.t]
-            X_i = self.X_flat.iloc[window-1 : self.t]
-            c = X_i.apply(lambda r: np.corrcoef(r.values, X_t.values)[0,1], axis=1)
+            X_i = self.X_flat.iloc[window - 1 : self.t]
+            c = X_i.apply(lambda r: np.corrcoef(r.values, X_t.values)[0, 1], axis=1)
 
             C = self.X.iloc[c.index[c >= self.rho] + 1]
 
@@ -121,5 +119,5 @@ class CORN(Algo):
 
 
 # use case
-if __name__ == '__main__':
+if __name__ == "__main__":
     tools.quickrun(CORN())

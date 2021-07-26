@@ -1,10 +1,10 @@
-from sklearn.covariance import EmpiricalCovariance
-from sklearn.base import BaseEstimator
 import numpy as np
+from sklearn.base import BaseEstimator
+from sklearn.covariance import EmpiricalCovariance
 
 
 class SingleIndexCovariance(BaseEstimator):
-    """ Estimation of covariance matrix by Ledoit and Wolf (http://www.ledoit.net/ole2.pdf).
+    """Estimation of covariance matrix by Ledoit and Wolf (http://www.ledoit.net/ole2.pdf).
     It combines sample covariance matrix with covariance matrix from single-index model and
     automatically estimates shrinking parameter alpha.
     Assumes that first column represents index.
@@ -19,9 +19,9 @@ class SingleIndexCovariance(BaseEstimator):
     def _single_index_covariance(self, X, S):
         # estimate beta from CAPM (use precomputed sample covariance to calculate beta)
         # https://en.wikipedia.org/wiki/Simple_linear_regression#Fitting_the_regression_line
-        var_market = S[0,0]
-        y = X[:,0]
-        beta = S[0,:] / var_market
+        var_market = S[0, 0]
+        y = X[:, 0]
+        beta = S[0, :] / var_market
         alpha = np.mean(X, 0) - beta * np.mean(y)
 
         # get residuals and their variance
@@ -36,7 +36,7 @@ class SingleIndexCovariance(BaseEstimator):
         P = np.zeros((N, N))
         for i in range(N):
             for j in range(i, N):
-                P[i,j] = P[j,i] = sum((Xc[:,i] * Xc[:,j] - S[i,j])**2)
+                P[i, j] = P[j, i] = sum((Xc[:, i] * Xc[:, j] - S[i, j]) ** 2)
         return P / T
 
     def _rho(self, X, S, F, P):
@@ -45,12 +45,20 @@ class SingleIndexCovariance(BaseEstimator):
         R = np.zeros((N, N))
         for i in range(N):
             for j in range(i, N):
-                g = (S[j,0] * S[0,0] * Xc[:,i] + S[i,0] * S[0,0] * Xc[:,j] - S[i,0]*S[j,0] * Xc[:,0]) / S[0,0]**2
-                R[i,j] = R[j,i] = 1./T * sum(g * Xc[:,0] * Xc[:,i] * Xc[:,j] - F[i,j] * S[i,j])
+                g = (
+                    S[j, 0] * S[0, 0] * Xc[:, i]
+                    + S[i, 0] * S[0, 0] * Xc[:, j]
+                    - S[i, 0] * S[j, 0] * Xc[:, 0]
+                ) / S[0, 0] ** 2
+                R[i, j] = R[j, i] = (
+                    1.0
+                    / T
+                    * sum(g * Xc[:, 0] * Xc[:, i] * Xc[:, j] - F[i, j] * S[i, j])
+                )
         return np.sum(R)
 
     def _gamma(self, S, F):
-        return np.sum((F - S)**2)
+        return np.sum((F - S) ** 2)
 
     def _optimal_alpha(self, X, S, F):
         T = X.shape[0]
@@ -58,7 +66,7 @@ class SingleIndexCovariance(BaseEstimator):
         phi = np.sum(P)
         gamma = self._gamma(S, F)
         rho = self._rho(X, S, F, P)
-        return 1./T * (phi - rho) / gamma
+        return 1.0 / T * (phi - rho) / gamma
 
     def fit(self, X):
         # use implicitely with arrays

@@ -1,22 +1,24 @@
-import typing as t
-import pandas as pd
-import numpy as np
-import scipy.optimize as optimize
-from scipy.special import betaln
-import matplotlib.pyplot as plt
-from time import time
-from datetime import datetime
-from pandas_datareader.data import DataReader
-import sys
-import os
-import logging
+import contextlib
 import itertools
+import logging
 import multiprocessing
+import os
+import sys
+import typing as t
+from datetime import datetime
+from time import time
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.optimize as optimize
+from cvxopt import matrix, solvers
+from pandas_datareader.data import DataReader
+from scipy.special import betaln
 from statsmodels import api as sm
 from statsmodels.api import OLS
-import contextlib
-from cvxopt import solvers, matrix
-solvers.options['show_progress'] = False
+
+solvers.options["show_progress"] = False
 
 
 @contextlib.contextmanager
@@ -30,13 +32,15 @@ def mp_pool(n_jobs):
 
 
 def dataset(name):
-    """ Return sample dataset from /data directory. """
-    filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data', name + '.csv')
+    """Return sample dataset from /data directory."""
+    filename = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "data", name + ".csv"
+    )
     return pd.read_csv(filename)
 
 
 def profile(algo, data=None, to_profile=[]):
-    """ Profile algorithm using line_profiler.
+    """Profile algorithm using line_profiler.
     :param algo: Algorithm instance.
     :param data: Stock prices, default is random portfolio.
     :param to_profile: List of methods to profile, default is `step` method.
@@ -47,7 +51,7 @@ def profile(algo, data=None, to_profile=[]):
     from line_profiler import LineProfiler
 
     if data is None:
-        data = random_portfolio(n=1000, k=10, mu=0.)
+        data = random_portfolio(n=1000, k=10, mu=0.0)
 
     to_profile = to_profile or [algo.step]
     profile = LineProfiler(*to_profile)
@@ -60,12 +64,12 @@ def load_ticker(ticker, start=datetime(2000, 1, 1), end=None):
 
 
 def quickrun(algo, data=None, n=1000, **kwargs):
-    """ Run algorithm and print its running time and some statistics. """
+    """Run algorithm and print its running time and some statistics."""
     if data is None:
         data = random_portfolio(n=n, k=3, mu=0.0001)
     t = time()
     result = algo.run(data)
-    logging.debug('Time: {:.2f}s'.format(time() - t))
+    logging.debug("Time: {:.2f}s".format(time() - t))
 
     print(result.summary())
     result.plot(**kwargs)
@@ -74,8 +78,8 @@ def quickrun(algo, data=None, n=1000, **kwargs):
     return result
 
 
-def random_portfolio(n, k, mu=0., sd=0.01, corr=None, dt=1., nan_pct=0.):
-    """ Generate asset prices assuming multivariate geometric Brownian motion.
+def random_portfolio(n, k, mu=0.0, sd=0.01, corr=None, dt=1.0, nan_pct=0.0):
+    """Generate asset prices assuming multivariate geometric Brownian motion.
 
     :param n: Number of time steps.
     :param k: Number of assets.
@@ -91,13 +95,13 @@ def random_portfolio(n, k, mu=0., sd=0.01, corr=None, dt=1., nan_pct=0.):
     mu = mu * np.ones(k)
 
     # drift
-    nu = mu - sd**2 / 2.
+    nu = mu - sd ** 2 / 2.0
 
     # do a Cholesky factorization on the correlation matrix
     R = np.linalg.cholesky(corr).T
 
     # generate uncorrelated random sequence
-    x = np.matrix(np.random.normal(size=(n - 1,k)))
+    x = np.matrix(np.random.normal(size=(n - 1, k)))
 
     # correlate the sequences
     ep = x * R
@@ -113,11 +117,21 @@ def random_portfolio(n, k, mu=0., sd=0.01, corr=None, dt=1., nan_pct=0.):
         r = S * 0 + np.random.random(S.shape)
         S[r < nan_pct] = np.nan
 
-    return pd.DataFrame(S, columns=['S{}'.format(i) for i in range(S.shape[1])])
+    return pd.DataFrame(S, columns=["S{}".format(i) for i in range(S.shape[1])])
 
 
-def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=252, no_cash=False, sd_factor=1., **kwargs):
-    """ Find best constant rebalanced portfolio with regards to some metric.
+def opt_weights(
+    X,
+    metric="return",
+    max_leverage=1,
+    rf_rate=0.0,
+    alpha=0.0,
+    freq=252,
+    no_cash=False,
+    sd_factor=1.0,
+    **kwargs,
+):
+    """Find best constant rebalanced portfolio with regards to some metric.
     :param X: Prices in ratios.
     :param metric: what performance metric to optimize, can be either `return` or `sharpe`
     :max_leverage: maximum leverage
@@ -126,19 +140,26 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
     :freq: frequency for sharpe (default 252 for daily data)
     :no_cash: if True, we can't keep cash (that is sum of weights == max_leverage)
     """
-    assert metric in ('return', 'sharpe', 'drawdown', 'ulcer')
+    assert metric in ("return", "sharpe", "drawdown", "ulcer")
     assert X.notnull().all().all()
 
     x_0 = max_leverage * np.ones(X.shape[1]) / float(X.shape[1])
-    if metric == 'return':
+    if metric == "return":
         objective = lambda b: -np.sum(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)))
-    elif metric == 'ulcer':
-        objective = lambda b: -ulcer(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
-                                      rf_rate=rf_rate, freq=freq)
-    elif metric == 'sharpe':
-        objective = lambda b: -sharpe(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
-                                      rf_rate=rf_rate, alpha=alpha, freq=freq, sd_factor=sd_factor)
-    elif metric == 'drawdown':
+    elif metric == "ulcer":
+        objective = lambda b: -ulcer(
+            np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)), rf_rate=rf_rate, freq=freq
+        )
+    elif metric == "sharpe":
+        objective = lambda b: -sharpe(
+            np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
+            rf_rate=rf_rate,
+            alpha=alpha,
+            freq=freq,
+            sd_factor=sd_factor,
+        )
+    elif metric == "drawdown":
+
         def objective(b):
             R = np.dot(X - 1, b) + 1
             L = np.cumprod(R)
@@ -147,35 +168,44 @@ def opt_weights(X, metric='return', max_leverage=1, rf_rate=0., alpha=0., freq=2
             return -annual_ret / (dd + alpha)
 
     if no_cash:
-        cons = ({'type': 'eq', 'fun': lambda b: max_leverage - sum(b)},)
+        cons = ({"type": "eq", "fun": lambda b: max_leverage - sum(b)},)
     else:
-        cons = ({'type': 'ineq', 'fun': lambda b: max_leverage - sum(b)},)
+        cons = ({"type": "ineq", "fun": lambda b: max_leverage - sum(b)},)
 
     while True:
         # problem optimization
-        res = optimize.minimize(objective, x_0, bounds=[(0., max_leverage)]*len(x_0), constraints=cons, method='slsqp', **kwargs)
+        res = optimize.minimize(
+            objective,
+            x_0,
+            bounds=[(0.0, max_leverage)] * len(x_0),
+            constraints=cons,
+            method="slsqp",
+            **kwargs,
+        )
 
         # result can be out-of-bounds -> try it again
-        EPS = 1E-7
-        if (res.x < 0. - EPS).any() or (res.x > max_leverage + EPS).any():
-            X = X + np.random.randn(1)[0] * 1E-5
-            logging.debug('Optimal weights not found, trying again...')
+        EPS = 1e-7
+        if (res.x < 0.0 - EPS).any() or (res.x > max_leverage + EPS).any():
+            X = X + np.random.randn(1)[0] * 1e-5
+            logging.debug("Optimal weights not found, trying again...")
             continue
         elif res.success:
             break
         else:
             if np.isnan(res.x).any():
-                logging.warning('Solution does not exist, use zero weights.')
+                logging.warning("Solution does not exist, use zero weights.")
                 res.x = np.zeros(X.shape[1])
             else:
-                logging.warning('Converged, but not successfully.')
+                logging.warning("Converged, but not successfully.")
             break
 
     return res.x
 
 
-def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_leverage=1.):
-    """ Get optimal weights from Markowitz framework. """
+def opt_markowitz(
+    mu, sigma, long_only=True, reg=0.0, rf_rate=0.0, q=1.0, max_leverage=1.0
+):
+    """Get optimal weights from Markowitz framework."""
     # delete assets with NaN values or no volatility
     keep = ~(mu.isnull() | (np.diag(sigma) < 0.00000001))
 
@@ -185,7 +215,7 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
     m = len(mu)
 
     # replace NaN values with 0
-    sigma = sigma.fillna(0.)
+    sigma = sigma.fillna(0.0)
 
     # convert to matrices
     sigma = np.matrix(sigma)
@@ -200,22 +230,23 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
         b = q / 2 * (1 + rf_rate) * sigma_inv @ (mu - rf_rate)
         b = np.ravel(b)
     else:
+
         def maximize(mu, sigma, r, q):
             n = len(mu)
 
-            P = 2 * matrix((sigma - r*mu*mu.T + (n*r)**2) / (1+r))
+            P = 2 * matrix((sigma - r * mu * mu.T + (n * r) ** 2) / (1 + r))
             q = matrix(-mu) * q
             G = matrix(-np.eye(n))
             h = matrix(np.zeros(n))
 
-            if max_leverage is None or max_leverage == float('inf'):
+            if max_leverage is None or max_leverage == float("inf"):
                 sol = solvers.qp(P, q, G, h)
             else:
                 A = matrix(np.ones(n)).T
                 b = matrix(np.array([float(max_leverage)]))
                 sol = solvers.qp(P, q, G, h, A, b)
 
-            return np.squeeze(sol['x'])
+            return np.squeeze(sol["x"])
 
         while True:
             try:
@@ -224,29 +255,30 @@ def opt_markowitz(mu, sigma, long_only=True, reg=0., rf_rate=0., q=1., max_lever
             except ValueError:
                 raise
                 # deal with singularity
-                logging.warning('Singularity problems')
+                logging.warning("Singularity problems")
                 sigma = sigma + 0.0001 * np.eye(len(sigma))
 
     # add back values for NaN assets
     b = pd.Series(b, index=keep.index[keep])
-    b = b.reindex(keep.index).fillna(0.)
+    b = b.reindex(keep.index).fillna(0.0)
 
     return b
 
 
 def bcrp_weights(X):
-    """ Find best constant rebalanced portfolio.
+    """Find best constant rebalanced portfolio.
     :param X: Prices in ratios.
     """
     return opt_weights(X)
 
 
 def rolling_cov_pairwise(df, *args, **kwargs):
-    return df.rolling(kwargs['window']).cov(other=df, pairwise=True)
+    return df.rolling(kwargs["window"]).cov(other=df, pairwise=True)
 
 
 def rolling_corr(x, y, **kwargs):
-    """ Rolling correlation between columns from x and y. """
+    """Rolling correlation between columns from x and y."""
+
     def rolling(dataframe, *args, **kwargs):
         ret = dataframe.copy()
         for col in ret:
@@ -274,38 +306,38 @@ def rolling_corr(x, y, **kwargs):
 
 
 def simplex_proj(y):
-    """ Projection of y onto simplex. """
+    """Projection of y onto simplex."""
     m = len(y)
     bget = False
 
     s = sorted(y, reverse=True)
-    tmpsum = 0.
+    tmpsum = 0.0
 
-    for ii in range(m-1):
+    for ii in range(m - 1):
         tmpsum = tmpsum + s[ii]
-        tmax = (tmpsum - 1) / (ii + 1);
-        if tmax >= s[ii+1]:
+        tmax = (tmpsum - 1) / (ii + 1)
+        if tmax >= s[ii + 1]:
             bget = True
             break
 
     if not bget:
-        tmax = (tmpsum + s[m-1] -1)/m
+        tmax = (tmpsum + s[m - 1] - 1) / m
 
-    return np.maximum(y-tmax,0.)
+    return np.maximum(y - tmax, 0.0)
 
 
 def __mesh(d, k):
-    """ Return integer non-negative solutions to equation x_1 + ... x_d = k."""
+    """Return integer non-negative solutions to equation x_1 + ... x_d = k."""
     if d == 1:
         yield [k]
     else:
-        for i in range(k+1):
-            for s in __mesh(d-1, k-i):
+        for i in range(k + 1):
+            for s in __mesh(d - 1, k - i):
                 yield [i] + s
 
 
 def simplex_mesh(d, points):
-    """ Create uniform grid on simplex. In 2-dim case the algorithm just selects
+    """Create uniform grid on simplex. In 2-dim case the algorithm just selects
     equally spaced points on interval [0,1]. In 3-dim, it selects vertices of 3-simplex
     triangulation.
     :param d: Number of dimensions.
@@ -313,36 +345,36 @@ def simplex_mesh(d, points):
     """
     # find k for __mesh such that points is number of points
     # total number of points is combination(d + k - 1, k)
-    fun = lambda k: - np.log(d+k) - betaln(k+1,d) - np.log(points)
+    fun = lambda k: -np.log(d + k) - betaln(k + 1, d) - np.log(points)
     k = int(optimize.newton(fun, x0=1))
-    k = max(k,1)
-    return np.array(sorted(__mesh(d,k))) / float(k)
+    k = max(k, 1)
+    return np.array(sorted(__mesh(d, k))) / float(k)
 
 
 def mc_simplex(d, points):
-    """ Sample random points from a simplex with dimension d.
+    """Sample random points from a simplex with dimension d.
     :param d: Number of dimensions.
     :param points: Total number of points.
     """
     a = np.sort(np.random.random((points, d)))
-    a = np.hstack([np.zeros((points,1)), a, np.ones((points,1))])
+    a = np.hstack([np.zeros((points, 1)), a, np.ones((points, 1))])
     return np.diff(a)
 
 
 def combinations(S, r):
-    """ Generator of all r-element combinations of stocks from portfolio S. """
+    """Generator of all r-element combinations of stocks from portfolio S."""
     for ncols in itertools.combinations(S.columns, r):
-        #yield S.iloc[:,ncols]
+        # yield S.iloc[:,ncols]
         yield S[list(ncols)]
 
 
 def log_progress(i, total, by=1):
-    """ Log progress by pcts. """
+    """Log progress by pcts."""
     progress = ((100 * i / total) // by) * by
-    last_progress = ((100 * (i-1) / total) // by) * by
+    last_progress = ((100 * (i - 1) / total) // by) * by
 
     if progress != last_progress:
-        logging.debug('Progress: {}%...'.format(progress))
+        logging.debug("Progress: {}%...".format(progress))
 
 
 def mu_std(R, rf_rate=None, freq=None):
@@ -350,7 +382,7 @@ def mu_std(R, rf_rate=None, freq=None):
     freq = freq or _freq(R.index)
 
     if rf_rate is None:
-        rf_rate = R['RFR']
+        rf_rate = R["RFR"]
 
     # adjust rf rate by frequency
     rf = rf_rate / freq
@@ -362,10 +394,12 @@ def mu_std(R, rf_rate=None, freq=None):
     mu = mu * freq
     sd = sd * np.sqrt(freq)
 
-    return pd.DataFrame({
-        'mu': mu,
-        'sd': sd,
-    })
+    return pd.DataFrame(
+        {
+            "mu": mu,
+            "sd": sd,
+        }
+    )
 
 
 def _sub_rf(r, rf):
@@ -378,7 +412,7 @@ def _sub_rf(r, rf):
     return r
 
 
-def ulcer(r, rf_rate=0., freq=None):
+def ulcer(r, rf_rate=0.0, freq=None):
     """Compute Ulcer ratio."""
     freq = freq or _freq(r.index)
     rf = rf_rate / freq
@@ -397,14 +431,14 @@ def ulcer(r, rf_rate=0., freq=None):
     else:
         drawdown = 1 - x / np.maximum.accumulate(x)
 
-    return mu / np.sqrt((drawdown**2).mean())
+    return mu / np.sqrt((drawdown ** 2).mean())
 
 
-def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1., w=None):
-    """ Compute annualized sharpe ratio from returns. If data does
-        not contain datetime index, assume daily frequency with 252 trading days a year
+def sharpe(r, rf_rate=0.0, alpha=0.0, freq=None, sd_factor=1.0, w=None):
+    """Compute annualized sharpe ratio from returns. If data does
+    not contain datetime index, assume daily frequency with 252 trading days a year
 
-        See https://treasury.govt.nz/sites/default/files/2007-09/twp03-28.pdf for more info.
+    See https://treasury.govt.nz/sites/default/files/2007-09/twp03-28.pdf for more info.
     """
     freq = freq or _freq(r.index)
 
@@ -425,11 +459,11 @@ def sharpe(r, rf_rate=0., alpha=0., freq=None, sd_factor=1., w=None):
     mu = mu * freq
     sd = sd * np.sqrt(freq)
 
-    sh = mu / (sd + alpha)**sd_factor
+    sh = mu / (sd + alpha) ** sd_factor
 
     if isinstance(sh, float):
         if sh == np.inf:
-            return np.inf * np.sign(mu - rf**(1./freq))
+            return np.inf * np.sign(mu - rf ** (1.0 / freq))
     else:
         pass
         # sh[sh == np.inf] *= np.sign(mu - rf**(1./freq))
@@ -445,20 +479,20 @@ def w_std(y, w):
 
 
 def sharpe_std(r, rf_rate=None, freq=None):
-    """ Calculate sharpe ratio std. Confidence interval is taken from
+    """Calculate sharpe ratio std. Confidence interval is taken from
     https://cran.r-project.org/web/packages/SharpeR/vignettes/SharpeRatio.pdf
     :param X: log returns
     """
     sh = sharpe(r, rf_rate=rf_rate, freq=freq)
     n = r.notnull().sum()
     freq = freq or _freq(r.index)
-    return np.sqrt((1. + sh**2/2.) * freq / n)
+    return np.sqrt((1.0 + sh ** 2 / 2.0) * freq / n)
 
 
 def freq(ix):
-    """ Number of data items per year. If data does not contain
+    """Number of data items per year. If data does not contain
     datetime index, assume daily frequency with 252 trading days a year."""
-    assert isinstance(ix, pd.Index), 'freq method only accepts pd.Index object'
+    assert isinstance(ix, pd.Index), "freq method only accepts pd.Index object"
 
     # sort if data is not monotonic
     if not ix.is_monotonic:
@@ -466,16 +500,17 @@ def freq(ix):
 
     if isinstance(ix, pd.DatetimeIndex):
         days = (ix[-1] - ix[0]).days
-        return len(ix) / float(days) * 365.
+        return len(ix) / float(days) * 365.0
     else:
-        return 252.
+        return 252.0
+
 
 # add alias to allow use of freq keyword in functions
 _freq = freq
 
 
-def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type='regression'):
-    """ Fill synthetic history of ETFs based on history of other stocks (e.g. UBT is 2x TLT).
+def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type="regression"):
+    """Fill synthetic history of ETFs based on history of other stocks (e.g. UBT is 2x TLT).
     If there's an asset with corr_threshold higher than corr_threshold, we use its returns
     to calculate returns for missing values. Otherwise we will use the same price.
     """
@@ -496,33 +531,37 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type='regre
             synth = corr.loc[col, ordered_cols[:i]].idxmax()
 
             if pd.isnull(synth):
-                logging.info('NaN proxy for {} found, backfill prices'.format(col))
+                logging.info("NaN proxy for {} found, backfill prices".format(col))
                 continue
 
             cr = corr.loc[col, synth]
             if abs(cr) >= corr_threshold:
                 nn = X[col].notnull()
 
-                if beta_type == 'regression':
+                if beta_type == "regression":
                     # calculate b in y = b*x
-                    b = (X.loc[nn, col] * X.loc[nn, synth]).sum() / (X.loc[nn, synth]**2).sum()
-                elif beta_type == 'std':
+                    b = (X.loc[nn, col] * X.loc[nn, synth]).sum() / (
+                        X.loc[nn, synth] ** 2
+                    ).sum()
+                elif beta_type == "std":
                     # make sure standard deviation is identical
                     b = X.loc[nn, col].std() / X.loc[nn, synth].std()
                 else:
                     raise NotImplementedError()
 
-
                 # fill missing data
                 X.loc[~nn, col] = b * X.loc[~nn, synth]
 
-                logging.info('Filling missing values of {} by {:.2f}*{} (correlation {:.2f})'.format(
-                        col, b, synth, cr))
+                logging.info(
+                    "Filling missing values of {} by {:.2f}*{} (correlation {:.2f})".format(
+                        col, b, synth, cr
+                    )
+                )
             else:
                 if backfill:
-                    logging.info('No proxy for {} found, backfill prices.'.format(col))
+                    logging.info("No proxy for {} found, backfill prices.".format(col))
                 else:
-                    logging.info('No proxy for {} found.'.format(col))
+                    logging.info("No proxy for {} found.".format(col))
 
     # reconstruct prices by going from end
     X = X + 1
@@ -533,13 +572,13 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type='regre
 
     # fill missing values backward
     if backfill:
-        S = S.fillna(method='bfill')
+        S = S.fillna(method="bfill")
 
     return S
 
 
 def fill_regressed_data(S):
-    """ Fill missing returns by linear combinations of assets without missing returns. """
+    """Fill missing returns by linear combinations of assets without missing returns."""
     S = S.copy()
     R = np.log(S).diff()
     R.iloc[0] = 0
@@ -565,7 +604,7 @@ def fill_regressed_data(S):
 
 
 def short_assets(S):
-    """ Create synthetic short assets. """
+    """Create synthetic short assets."""
     X = S / S.shift(1)
 
     # shorting
@@ -577,8 +616,8 @@ def short_assets(S):
 
 
 def bootstrap_history(S, drop_fraction=0.1, size=None, random_state=None):
-    """ Remove fraction of days and reconstruct time series from remaining days. Useful for stress-testing
-    strategies. """
+    """Remove fraction of days and reconstruct time series from remaining days. Useful for stress-testing
+    strategies."""
     # work with returns
     R = S / S.shift(1)
 
@@ -603,8 +642,8 @@ def _bootstrap_mp(algo_bS):
 
 
 def bootstrap_algo(S, algo, n, drop_fraction=0.1, random_state=None, n_jobs=-1):
-    """ Use bootstrap_history to create several simulated results of our strategy
-    and evaluate algo on those samples paralelly. """
+    """Use bootstrap_history to create several simulated results of our strategy
+    and evaluate algo on those samples paralelly."""
     if random_state:
         np.random.seed(random_state)
 
@@ -619,7 +658,7 @@ def bootstrap_algo(S, algo, n, drop_fraction=0.1, random_state=None, n_jobs=-1):
 
 
 def cov_to_corr(sigma):
-    """ Convert covariance matrix to correlation matrix. """
+    """Convert covariance matrix to correlation matrix."""
     return sigma / np.sqrt(np.outer(np.diag(sigma), np.diag(sigma)))
 
 
@@ -633,25 +672,83 @@ def get_cash(rfr, ib_fee=0.015):
 
 def tradable_etfs():
     return [
-        'TLT', 'SPY', 'RSP', 'GLD', 'EDV', 'MDY', 'QQQ', 'IWM', 'EFA', 'IYR', 'ASHR', 'SSO', 'TMF', 'UPRO', 'EDC', 'TQQQ', 'XIV',
-        'ZIV', 'EEM', 'UGLD', 'FAS', 'UDOW', 'UMDD', 'URTY', 'TNA', 'ERX', 'BIB', 'UYG', 'RING', 'LABU', 'XLE', 'XLF', 'IBB',
-        'FXI', 'XBI', 'XSD', 'GOOGL', 'AAPL', 'VNQ', 'DRN', 'O', 'IEF', 'GBTC', 'KBWY', 'KBWR', 'DPST', 'YINN', 'FHK', 'XOP',
-        'GREK', 'SIL', 'JPNL', 'KRE', 'IAT', 'SOXL', 'RETL', 'VIXM', 'QABA', 'KBE', 'USDU', 'UUP', 'TYD']
+        "TLT",
+        "SPY",
+        "RSP",
+        "GLD",
+        "EDV",
+        "MDY",
+        "QQQ",
+        "IWM",
+        "EFA",
+        "IYR",
+        "ASHR",
+        "SSO",
+        "TMF",
+        "UPRO",
+        "EDC",
+        "TQQQ",
+        "XIV",
+        "ZIV",
+        "EEM",
+        "UGLD",
+        "FAS",
+        "UDOW",
+        "UMDD",
+        "URTY",
+        "TNA",
+        "ERX",
+        "BIB",
+        "UYG",
+        "RING",
+        "LABU",
+        "XLE",
+        "XLF",
+        "IBB",
+        "FXI",
+        "XBI",
+        "XSD",
+        "GOOGL",
+        "AAPL",
+        "VNQ",
+        "DRN",
+        "O",
+        "IEF",
+        "GBTC",
+        "KBWY",
+        "KBWR",
+        "DPST",
+        "YINN",
+        "FHK",
+        "XOP",
+        "GREK",
+        "SIL",
+        "JPNL",
+        "KRE",
+        "IAT",
+        "SOXL",
+        "RETL",
+        "VIXM",
+        "QABA",
+        "KBE",
+        "USDU",
+        "UUP",
+        "TYD",
+    ]
 
 
 def same_vol(S):
-    R = S.pct_change().drop('RFR', axis=1)
-    rfr = S['RFR']
+    R = S.pct_change().drop("RFR", axis=1)
+    rfr = S["RFR"]
     vol = R.std()
     leverage = vol.mean() / vol
     R = (leverage * (R.sub(rfr / 252, axis=0))).add(rfr / 252, axis=0)
     S = (1 + R.fillna(0)).cumprod()
-    S['RFR'] = rfr
+    S["RFR"] = rfr
     return S
 
 
-
-def capm(y: pd.Series, bases: pd.DataFrame, rf=0., fee=0.):
+def capm(y: pd.Series, bases: pd.DataFrame, rf=0.0, fee=0.0):
     freq = _freq(y.index)
     rf = rf / freq
     fee = fee / freq
@@ -661,9 +758,11 @@ def capm(y: pd.Series, bases: pd.DataFrame, rf=0., fee=0.):
 
     # CAPM:
     # R = alpha + rf + beta * (Rm - rf)
-    model = OLS.from_formula(f"Q('{y.name}') ~ {'+'.join(bases.columns)}", R_base.join(R)).fit()
+    model = OLS.from_formula(
+        f"Q('{y.name}') ~ {'+'.join(bases.columns)}", R_base.join(R)
+    ).fit()
 
-    alpha = model.params['Intercept'] * freq
+    alpha = model.params["Intercept"] * freq
     betas = model.params[bases.columns]
 
     # reconstruct artificial portfolio
@@ -675,9 +774,9 @@ def capm(y: pd.Series, bases: pd.DataFrame, rf=0., fee=0.):
     residual = (1 + r).cumprod()
 
     return {
-        'alpha': alpha,
-        'betas': betas,
-        'cumproxy': cumproxy,
-        'model': model,
-        'residual': residual,
+        "alpha": alpha,
+        "betas": betas,
+        "cumproxy": cumproxy,
+        "model": model,
+        "residual": residual,
     }

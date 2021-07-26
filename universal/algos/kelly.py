@@ -1,23 +1,37 @@
-from ..algo import Algo
+import logging
+
 import numpy as np
 import pandas as pd
+from cvxopt import matrix, solvers
+
 from .. import tools
-import logging
-from cvxopt import solvers, matrix
-solvers.options['show_progress'] = False
+from ..algo import Algo
+
+solvers.options["show_progress"] = False
 
 
 class Kelly(Algo):
-    """ Kelly fractioned betting. See
+    """Kelly fractioned betting. See
     http://en.wikipedia.org/wiki/Kelly_criterion#Application_to_the_stock_market
     for quick introduction.
     """
 
-    PRICE_TYPE = 'log'
+    PRICE_TYPE = "log"
     REPLACE_MISSING = False
 
-    def __init__(self, window=float('inf'), r=0., fraction=1., long_only=False, min_history=None, max_leverage=1., reg=0., q=1.,
-                 mu_estimate=False, gamma=0.):
+    def __init__(
+        self,
+        window=float("inf"),
+        r=0.0,
+        fraction=1.0,
+        long_only=False,
+        min_history=None,
+        max_leverage=1.0,
+        reg=0.0,
+        q=1.0,
+        mu_estimate=False,
+        gamma=0.0,
+    ):
         """
         :param window: Window for calculating mean and variance. Use float('inf') for entire history.
         :param min_history: Use zero weights for first min_periods.
@@ -30,7 +44,7 @@ class Kelly(Algo):
         :param gamma: Penalize changing weights.
         """
         if np.isinf(window):
-            window = int(1e+8)
+            window = int(1e8)
             min_history = min_history or 50
         else:
             min_history = min_history or window
@@ -48,7 +62,9 @@ class Kelly(Algo):
 
     def init_step(self, X):
         # precalculate correlations
-        self.S = tools.rolling_cov_pairwise(X, window=self.window, min_periods=self.min_history)
+        self.S = tools.rolling_cov_pairwise(
+            X, window=self.window, min_periods=self.min_history
+        )
         self.M = X.rolling(window=self.window, min_periods=self.min_history).mean()
 
     def step(self, x, last_b, history):
@@ -70,9 +86,9 @@ class Kelly(Algo):
         if gamma != 0:
             sigma += gamma * np.eye(m)
             if q == 0:
-                mu = 2. * gamma * last_b
+                mu = 2.0 * gamma * last_b
             else:
-                mu += 2. * gamma / q
+                mu += 2.0 * gamma / q
 
         # pure approach - problems with singular matrix
         if not self.long_only:
@@ -83,15 +99,23 @@ class Kelly(Algo):
             b = (1 + self.r) * sigma_inv * (mu - self.r)
             b = np.ravel(b)
         else:
-            b = tools.opt_markowitz(mu, sigma, long_only=self.long_only, reg=self.reg, rf_rate=self.r, q=self.q, max_leverage=self.max_leverage)
+            b = tools.opt_markowitz(
+                mu,
+                sigma,
+                long_only=self.long_only,
+                reg=self.reg,
+                rf_rate=self.r,
+                q=self.q,
+                max_leverage=self.max_leverage,
+            )
 
         # use Kelly fraction
         b *= self.fraction
 
         return b
 
-    def plot_fraction(self, S, fractions=np.linspace(0., 2., 10), **kwargs):
-        """ Plot graph with Kelly fraction on x-axis and total wealth on y-axis.
+    def plot_fraction(self, S, fractions=np.linspace(0.0, 2.0, 10), **kwargs):
+        """Plot graph with Kelly fraction on x-axis and total wealth on y-axis.
         :param S: Stock prices.
         :param fractions: List (ndarray) of fractions used.
         """
@@ -101,11 +125,11 @@ class Kelly(Algo):
             wealths.append(self.run(S).total_wealth)
 
         ax = pd.Series(wealths, index=fractions, **kwargs).plot(**kwargs)
-        ax.set_xlabel('Kelly Fraction')
-        ax.set_ylabel('Total Wealth')
+        ax.set_xlabel("Kelly Fraction")
+        ax.set_ylabel("Total Wealth")
         return ax
 
-# use case
-if __name__ == '__main__':
-    tools.quickrun(Kelly())
 
+# use case
+if __name__ == "__main__":
+    tools.quickrun(Kelly())
