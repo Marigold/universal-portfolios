@@ -3,6 +3,7 @@
 *sublime-workspace
 .ipynb_checkpoints
 .settings/
+.python-version
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
