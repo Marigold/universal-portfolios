@@ -393,6 +393,10 @@ class AlgoResult(PickleMixin):
             res.plot(assets=assets, ax=ax1, **kwargs)
             ax2 = plt.subplot2grid((3, 1), (2, 0), sharex=ax1)
 
+            color = kwargs.get('color')
+            if color is None:
+                color = _colors_hash(B.columns)
+
             # plot weights as lines
             if B.drop(["CASH"], 1, errors="ignore").values.min() < -0.01:
                 B = B.sort_index(axis=1)
@@ -400,7 +404,7 @@ class AlgoResult(PickleMixin):
                     ax=ax2,
                     ylim=(min(0.0, B.values.min()), max(1.0, B.values.max())),
                     legend=False,
-                    color=_colors_hash(B.columns),
+                    color=color,
                 )
             else:
                 B = B.drop("CASH", 1, errors="ignore")
@@ -413,7 +417,7 @@ class AlgoResult(PickleMixin):
                     ax=ax2,
                     ylim=(0.0, max(1.0, pB.sum(1).max())),
                     legend=False,
-                    color=_colors_hash(pB.columns),
+                    color=color,
                     kind="area",
                     stacked=True,
                 )
@@ -535,7 +539,12 @@ class ListResult(list, PickleMixin):
         if list(assets):
             D = D.join(self[0].asset_equity)
 
-        ax = D.plot(color=_colors_hash(D.columns), **kwargs)
+        color = kwargs.get('color')
+        if color is None:
+            color = _colors_hash(D.columns)
+        else:
+            del kwargs['color']
+        ax = D.plot(color=color, **kwargs)
         kwargs["ax"] = ax
 
         ax.set_ylabel("Total wealth")
