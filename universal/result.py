@@ -396,7 +396,9 @@ class AlgoResult(PickleMixin):
             color = kwargs.get('color')
             if color is None:
                 color = _colors_hash(B.columns)
-
+            else:
+                # remove first color used for portfolio
+                color = color[1:]
             # plot weights as lines
             if B.drop(["CASH"], 1, errors="ignore").values.min() < -0.01:
                 B = B.sort_index(axis=1)
