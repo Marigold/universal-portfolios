@@ -367,6 +367,7 @@ class AlgoResult(PickleMixin):
         assets=True,
         portfolio_label="PORTFOLIO",
         show_only_important=True,
+        color=None,
         **kwargs,
     ):
         """Plot equity of all assets plus our strategy.
@@ -376,7 +377,7 @@ class AlgoResult(PickleMixin):
         """
         res = ListResult([self], [portfolio_label])
         if not weights:
-            ax1 = res.plot(assets=assets, **kwargs)
+            ax1 = res.plot(assets=assets, color=color, **kwargs)
             return [ax1]
         else:
             if show_only_important:
@@ -390,15 +391,15 @@ class AlgoResult(PickleMixin):
 
             plt.figure(1)
             ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
-            res.plot(assets=assets, ax=ax1, **kwargs)
+            res.plot(assets=assets, ax=ax1, color=color, **kwargs)
             ax2 = plt.subplot2grid((3, 1), (2, 0), sharex=ax1)
 
-            color = kwargs.get('color')
             if color is None:
                 color = _colors_hash(B.columns)
             else:
                 # remove first color used for portfolio
                 color = color[1:]
+
             # plot weights as lines
             if B.drop(["CASH"], 1, errors="ignore").values.min() < -0.01:
                 B = B.sort_index(axis=1)
@@ -516,6 +517,7 @@ class ListResult(list, PickleMixin):
         residual=False,
         capm_residual=False,
         assets=False,
+        color=None,
         **kwargs,
     ):
         """Plot strategy equity.
@@ -541,11 +543,8 @@ class ListResult(list, PickleMixin):
         if list(assets):
             D = D.join(self[0].asset_equity)
 
-        color = kwargs.get('color')
         if color is None:
             color = _colors_hash(D.columns)
-        else:
-            del kwargs['color']
         ax = D.plot(color=color, **kwargs)
         kwargs["ax"] = ax
 
