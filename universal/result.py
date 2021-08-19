@@ -342,17 +342,27 @@ class AlgoResult(PickleMixin):
         c = tools.capm(y, bases, rf=self.rf_rate)
         return c["alpha"], c["betas"]["ucrp"]
 
-    def summary(self, name=None):
+    def summary(self, name=None, capm=False):
+        """
+        :param capm: turn on metrics that run CAPM on all assets, can be CPU & memory intensive
+        """
+        if capm:
+            capm_metrics = f"Appraisal ratio (CAPM): {self.appraisal_capm:.2f} ± {self.appraisal_capm_std:.2f}\n    "
+        else:
+            capm_metrics = ""
+
         alpha, beta = self.alpha_beta()
-        return f"""Summary{'' if name is None else ' for ' + name}:
+        return (
+            f"""Summary{'' if name is None else ' for ' + name}:
     Profit factor: {self.profit_factor:.2f}
     Sharpe ratio: {self.sharpe:.2f} ± {self.sharpe_std:.2f}
     Ulcer index: {self.ulcer:.2f}
     Information ratio (wrt UCRP): {self.information:.2f}
-    Appraisal ratio (CAPM): {self.appraisal_capm:.2f} ± {self.appraisal_capm_std:.2f}
-    Appraisal ratio (wrt UCRP): {self.appraisal_ucrp:.2f} ± {self.appraisal_ucrp_std:.2f}
     UCRP sharpe: {self.ucrp_sharpe:.2f} ± {self.ucrp_sharpe_std:.2f}
-    Beta / Alpha: {beta:.2f} / {alpha:.3%}
+    Appraisal ratio (wrt UCRP): {self.appraisal_ucrp:.2f} ± {self.appraisal_ucrp_std:.2f}
+    """
+            + capm_metrics
+            + f"""Beta / Alpha: {beta:.2f} / {alpha:.3%}
     Annualized return: {self.annualized_return:.2%}
     Annualized volatility: {self.annualized_volatility:.2%}
     Longest drawdown: {self.drawdown_period:.0f} days
@@ -360,6 +370,7 @@ class AlgoResult(PickleMixin):
     Winning days: {self.winning_pct:.1%}
     Annual turnover: {self.turnover:.1f}
         """
+        )
 
     def plot(
         self,

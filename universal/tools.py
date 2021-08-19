@@ -758,9 +758,7 @@ def capm(y: pd.Series, bases: pd.DataFrame, rf=0.0, fee=0.0):
 
     # CAPM:
     # R = alpha + rf + beta * (Rm - rf)
-    model = OLS.from_formula(
-        f"Q('{y.name}') ~ {'+'.join(bases.columns)}", R_base.join(R)
-    ).fit()
+    model = OLS(R, R_base.assign(Intercept=1), missing="drop").fit()
 
     alpha = model.params["Intercept"] * freq
     betas = model.params[bases.columns]
