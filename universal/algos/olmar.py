@@ -24,7 +24,7 @@ class OLMAR(Algo):
             x * w >= eps for new weights w.
         """
 
-        super(OLMAR, self).__init__(min_history=window)
+        super().__init__(min_history=window)
 
         # input check
         if window < 2:

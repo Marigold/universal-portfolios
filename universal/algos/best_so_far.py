@@ -15,7 +15,7 @@ class BestSoFar(Algo):
         self.n = n
         self.metric = metric
         self.metric_kwargs = metric_kwargs
-        super(BestSoFar, self).__init__(min_history=min_history)
+        super().__init__(min_history=min_history)
 
     def init_weights(self, columns):
         # use uniform weights until you get enough history

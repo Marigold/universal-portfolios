@@ -24,7 +24,7 @@ class BNN(Algo):
         :param l: Number of nearest neighbors.
         """
 
-        super(BNN, self).__init__(min_history=k + l - 1)
+        super().__init__(min_history=k + l - 1)
 
         self.k = k
         self.l = l

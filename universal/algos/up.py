@@ -26,7 +26,7 @@ class UP(Algo):
             leverage == 1/nr_stocks to uniform CRP. leverage > 1 allows negative weights
             in portfolio.
         """
-        super(UP, self).__init__()
+        super().__init__()
         self.eval_points = int(eval_points)
         self.leverage = leverage
 

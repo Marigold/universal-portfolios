@@ -35,7 +35,7 @@ class RMR(OLMAR):
         :param tau: Precision for finding median. Recommended value is around 0.001. Strongly
                     affects algo speed.
         """
-        super(RMR, self).__init__(window, eps)
+        super().__init__(window, eps)
         self.tau = tau
 
     def predict(self, x, history):

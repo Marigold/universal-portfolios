@@ -481,7 +481,7 @@ class ListResult(list, PickleMixin):
         self.names = names
 
     def append(self, result, name):
-        super(ListResult, self).append(result)
+        super().append(result)
         self.names.append(name)
 
     def to_dataframe(self):

@@ -24,7 +24,7 @@ class WMAMR(PAMR):
         :param w: Windows length for moving average.
         :param kwargs: Additional arguments for PAMR.
         """
-        super(WMAMR, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         if window < 1:
             raise ValueError("window parameter must be >=1")

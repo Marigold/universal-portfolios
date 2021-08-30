@@ -41,7 +41,7 @@ class BestMarkowitz(CRP):
 
         self.b = tools.opt_markowitz(mu, sigma, **self.opt_markowitz_kwargs)
 
-        return super(BestMarkowitz, self).weights(R)
+        return super().weights(R)
 
 
 if __name__ == "__main__":

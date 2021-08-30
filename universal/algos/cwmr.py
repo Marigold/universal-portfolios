@@ -27,7 +27,7 @@ class CWMR(Algo):
         :param confidence: Confidence parameter for profitable mean reversion portfolio.
                     Recommended value is 0.95.
         """
-        super(CWMR, self).__init__()
+        super().__init__()
 
         # input check
         if not (0 <= confidence <= 1):

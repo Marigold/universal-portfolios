@@ -41,7 +41,7 @@ class CORN(Algo):
         if not (window >= 2):
             raise ValueError("window must be greater than 2")
 
-        super(CORN, self).__init__()
+        super().__init__()
         self.window = window
         self.rho = rho
         self.fast_version = fast_version
@@ -75,7 +75,7 @@ class CORN(Algo):
             # calculate correlation with predecesors
             X_t = history.iloc[-window:].values.flatten()
             for i in range(window, len(history)):
-                X_i = history.iloc[i - window : i - 1].values.flatten()
+                X_i = history.iloc[i - window : i].values.flatten()
                 if np.corrcoef(X_t, X_i)[0, 1] >= self.rho:
                     indices.append(i)
 
@@ -114,7 +114,10 @@ class CORN(Algo):
             return b
 
     def optimal_weights(self, X):
-        freq = tools.freq(X.index)
+        if len(X) == 1:
+            freq = 252
+        else:
+            freq = tools.freq(X.index)
         return tools.opt_weights(X, freq=freq)
 
 

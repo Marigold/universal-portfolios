@@ -49,7 +49,7 @@ class Kelly(Algo):
         else:
             min_history = min_history or window
 
-        super(Kelly, self).__init__(min_history=min_history)
+        super().__init__(min_history=min_history)
         self.window = window
         self.r = r
         self.fraction = fraction

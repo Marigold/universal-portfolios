@@ -494,6 +494,8 @@ def freq(ix):
     datetime index, assume daily frequency with 252 trading days a year."""
     assert isinstance(ix, pd.Index), "freq method only accepts pd.Index object"
 
+    assert len(ix) > 1, "Index must contain more than one item"
+
     # sort if data is not monotonic
     if not ix.is_monotonic:
         ix = ix.sort_values()

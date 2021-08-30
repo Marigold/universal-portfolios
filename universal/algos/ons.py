@@ -23,7 +23,7 @@ class ONS(Algo):
         """
         :param delta, beta, eta: Model parameters. See paper.
         """
-        super(ONS, self).__init__()
+        super().__init__()
         self.delta = delta
         self.beta = beta
         self.eta = eta

@@ -20,7 +20,7 @@ class EG(Algo):
         """
         :params eta: Learning rate. Controls volatility of weights.
         """
-        super(EG, self).__init__()
+        super().__init__()
         self.eta = eta
 
     def init_weights(self, columns):

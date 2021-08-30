@@ -26,7 +26,7 @@ class PAMR(Algo):
         :param C: Control parameter for variant 1 and 2. Recommended value is 500.
         :param variant: Variants 0, 1, 2 are available.
         """
-        super(PAMR, self).__init__()
+        super().__init__()
 
         # input check
         if not (eps >= 0):

@@ -25,7 +25,7 @@ class BCRP(CRP):
 
         self.b = tools.opt_weights(X, **self.opt_weights_kwargs)
 
-        return super(BCRP, self).weights(X)
+        return super().weights(X)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ class Anticor(Algo):
         :param window: Window parameter.
         :param c_version: Use c_version, up to 10x speed-up.
         """
-        super(Anticor, self).__init__()
+        super().__init__()
         self.window = window
         self.c_version = c_version
 
