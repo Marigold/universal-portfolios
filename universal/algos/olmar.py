@@ -49,17 +49,19 @@ class OLMAR(Algo):
         """Predict returns on next day."""
         return (history / x).mean()
 
-    def update(self, b, x, eps):
+    def update(self, b, x_pred, eps):
         """Update portfolio weights to satisfy constraint b * x >= eps
         and minimize distance to previous weights."""
-        x_mean = np.mean(x)
-        lam = max(0.0, (eps - np.dot(b, x)) / np.linalg.norm(x - x_mean) ** 2)
+        x_pred_mean = np.mean(x_pred)
+        lam = max(
+            0.0, (eps - np.dot(b, x_pred)) / np.linalg.norm(x_pred - x_pred_mean) ** 2
+        )
 
         # limit lambda to avoid numerical problems
         lam = min(100000, lam)
 
         # update portfolio
-        b = b + lam * (x - x_mean)
+        b = b + lam * (x_pred - x_pred_mean)
 
         # project it onto simplex
         return tools.simplex_proj(b)

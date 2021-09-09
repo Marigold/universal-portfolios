@@ -38,8 +38,6 @@ class Algo(object):
         """
         self.min_history = min_history or 0
         self.frequency = frequency
-        self.trx_fee_pct = kwargs.get("trx_fee_pct", 0)
-        self.trx_fee_n = kwargs.get("trx_fee_n", 10)
 
     def init_weights(self, columns):
         """Set initial weights.
@@ -75,9 +73,6 @@ class Algo(object):
         if isinstance(last_b, np.ndarray):
             last_b = pd.Series(last_b, X.columns)
 
-        # use history in step method?
-        use_history = True
-
         # run algo
         self.init_step(X)
         for t, (_, x) in enumerate(X.iterrows()):
@@ -96,10 +91,6 @@ class Algo(object):
             history = X.iloc[: t + 1]
             last_b = self.step(x, last_b, history)
 
-            # Transaction Costs Optimization
-            if self.trx_fee_pct > 0:
-                last_b = self.update_tco(x, last_b)
-
             # convert last_b to suitable format if needed
             if type(last_b) == np.matrix:
                 # remove dimension
@@ -110,28 +101,6 @@ class Algo(object):
                 tools.log_progress(t, len(X), by=10)
 
         return B
-
-    def update_tco(self, b, x_pred):
-        """
-        Transaction Costs Optimization
-        Paper : https://ink.library.smu.edu.sg/cgi/viewcontent.cgi?referer=&httpsredir=1&article=4761&context=sis_research
-        """
-
-        lambd = 10 * self.trx_fee_pct
-
-        # last price adjusted weights
-        updated_b = np.multiply(b, x_pred) / np.dot(b, x_pred)
-
-        # Calculate variables
-        vt = x_pred / np.dot(updated_b, x_pred)
-        v_t_ = np.dot(1, vt) / self.window
-
-        # Update portfolio
-        b_1 = self.trx_fee_n * (vt - np.dot(v_t_, 1))
-        b_ = b_1 + np.sign(b_1) * np.maximum(np.zeros(len(b_1)), np.abs(b_1) - lambd)
-
-        # project it onto simplex
-        return tools.simplex_proj(y=b_)
 
     def _split_index(self, ix, nr_chunks, freq):
         """Split index into chunks so that each chunk except of the last has length

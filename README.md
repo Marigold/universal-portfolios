@@ -85,7 +85,6 @@ Exporting dependencies to the `requirements.txt` file is needed for mybinder.org
 
 ```
 poetry export --without-hashes -f requirements.txt > requirements.txt
-poetry export --dev --without-hashes -f requirements.txt > test-requirements.txt
 ```
 
 ### Formatting

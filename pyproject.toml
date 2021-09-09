@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "universal-portfolios"
-version = "0.4.6"
+version = "0.4.7"
 description = "Collection of algorithms for online portfolio selection"
 readme = "README.md"
 repository = "https://github.com/Marigold/universal-portfolios"
@@ -22,9 +22,13 @@ plotly = "^4.9.0"
 pandas = "^1.1.1"
 cvxopt = "1.2.5"
 tqdm = "^4.56.2"
+typing-extensions = "^3.10.0"
+urllib3 = "^1.26.6"
+Pillow = "^8.3.2"
+lxml = "^4.6.3"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.0.1"
+pytest = "^6.2.5"
 ipdb = "^0.13.3"
 line-profiler = "^3.0.2"
 ipykernel = "^5.3.4"

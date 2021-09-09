@@ -51,3 +51,9 @@ def test_crp(S):
     result = algos.CRP(b).run(S)
 
     assert abs(result.total_wealth - S[S.columns[0]].iloc[-1]) < EPS
+
+
+def test_tco1(S):
+    """Zero turnover with extremely high fees."""
+    result = algos.TCO1(eta=1, trx_fee_pct=1e6).run(S)
+    assert abs(result.turnover) < 1e-8
