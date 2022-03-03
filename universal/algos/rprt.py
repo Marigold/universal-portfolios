@@ -68,7 +68,7 @@ class RPRT(Algo):
 
     def predict(self, hist):
         """Predict next price relative."""
-        return hist.apply(self.sma).iloc[-1, :] / hist.iloc[-1, :]
+        return hist.mean() / hist.iloc[-1, :]
 
     def update(self, b, phi_pred, D_pred):
         # Calculate variables
@@ -94,9 +94,6 @@ class RPRT(Algo):
         # project it onto simplex
         return tools.simplex_proj(y=b_)
 
-    @staticmethod
-    def sma(close):
-        return close.rolling(len(close)).mean()
 
 
 if __name__ == "__main__":
