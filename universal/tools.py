@@ -95,7 +95,7 @@ def random_portfolio(n, k, mu=0.0, sd=0.01, corr=None, dt=1.0, nan_pct=0.0):
     mu = mu * np.ones(k)
 
     # drift
-    nu = mu - sd ** 2 / 2.0
+    nu = mu - sd**2 / 2.0
 
     # do a Cholesky factorization on the correlation matrix
     R = np.linalg.cholesky(corr).T
@@ -289,8 +289,8 @@ def rolling_corr(x, y, **kwargs):
 
     EX = rolling(x, **kwargs)
     EY = rolling(y, **kwargs)
-    EX2 = rolling(x ** 2, **kwargs)
-    EY2 = rolling(y ** 2, **kwargs)
+    EX2 = rolling(x**2, **kwargs)
+    EY2 = rolling(y**2, **kwargs)
 
     RXY = np.zeros((n, k, k))
 
@@ -431,7 +431,7 @@ def ulcer(r, rf_rate=0.0, freq=None):
     else:
         drawdown = 1 - x / np.maximum.accumulate(x)
 
-    return mu / np.sqrt((drawdown ** 2).mean())
+    return mu / np.sqrt((drawdown**2).mean())
 
 
 def sharpe(r, rf_rate=0.0, alpha=0.0, freq=None, sd_factor=1.0, w=None):
@@ -475,7 +475,7 @@ def w_avg(y, w):
 
 
 def w_std(y, w):
-    return np.sqrt(np.maximum(0, w_avg(y ** 2, w) - (w_avg(y, w)) ** 2))
+    return np.sqrt(np.maximum(0, w_avg(y**2, w) - (w_avg(y, w)) ** 2))
 
 
 def sharpe_std(r, rf_rate=None, freq=None):
@@ -486,7 +486,7 @@ def sharpe_std(r, rf_rate=None, freq=None):
     sh = sharpe(r, rf_rate=rf_rate, freq=freq)
     n = r.notnull().sum()
     freq = freq or _freq(r.index)
-    return np.sqrt((1.0 + sh ** 2 / 2.0) * freq / n)
+    return np.sqrt((1.0 + sh**2 / 2.0) * freq / n)
 
 
 def freq(ix):
@@ -739,11 +739,13 @@ def tradable_etfs():
     ]
 
 
-def same_vol(S):
+def same_vol(S, target=None, target_vol=None):
     R = S.pct_change().drop("RFR", axis=1)
     rfr = S["RFR"]
     vol = R.std()
-    leverage = vol.mean() / vol
+    if not target_vol:
+        target_vol = vol[target] if target else vol.mean()
+    leverage = target_vol / vol
     R = (leverage * (R.sub(rfr / 252, axis=0))).add(rfr / 252, axis=0)
     S = (1 + R.fillna(0)).cumprod()
     S["RFR"] = rfr

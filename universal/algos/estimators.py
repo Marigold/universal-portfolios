@@ -612,7 +612,7 @@ class TaxAdjustment:
         m = mu.copy()
         m.update(pd.Series(tr.mean(axis=1), index=b.index))
         # f = (tr.mean() - np.minimum(profit, profit * (1 - self.tax))) / r.mean()
-        print(f"Tax loss: {(m / mu).loc[b.index].round(2)}")
+        print(f"Tax loss in % of mean: {(m / mu).loc[b.index].round(2)}")
 
         # adjust mean returns and update original mean
         # mu = mu.copy()
