@@ -301,10 +301,16 @@ class AlgoResult(PickleMixin):
         # equity increase
         E = (B * (X - 1)).sum(axis=1) + 1
 
+        """old version, probably wrong
         # required new assets
         R = B.shift(-1).multiply(E, axis=0) / X
+        """
 
-        D = R - B
+        # calculate new value of assets and normalize by new equity to get
+        # weights for tomorrow
+        hold_B = (B * X).div(E, axis=0)
+
+        D = B - hold_B.shift(1)
 
         # rebalancing
         return D.abs().sum().sum() / (len(B) / self.freq())
@@ -400,7 +406,8 @@ class AlgoResult(PickleMixin):
             else:
                 B = self.B.copy()
 
-            plt.figure(1)
+            figsize = plt.rcParams["figure.figsize"]
+            plt.figure(1, figsize=(figsize[0] * 2, figsize[1] * 1.5))
             ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
             res.plot(assets=assets, ax=ax1, color=color, **kwargs)
             ax2 = plt.subplot2grid((3, 1), (2, 0), sharex=ax1)
@@ -413,13 +420,13 @@ class AlgoResult(PickleMixin):
 
             # plot weights as lines
             if B.drop(["CASH"], 1, errors="ignore").values.min() < -0.01:
-                B = B.sort_index(axis=1)
                 B.plot(
                     ax=ax2,
                     ylim=(min(0.0, B.values.min()), max(1.0, B.values.max())),
                     legend=False,
-                    color=color,
+                    color=_colors_hash(B.columns),
                 )
+            # plot weights as area chart
             else:
                 B = B.drop("CASH", 1, errors="ignore")
                 # fix rounding errors near zero

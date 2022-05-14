@@ -739,11 +739,12 @@ def tradable_etfs():
     ]
 
 
-def same_vol(S):
+def same_vol(S, target=None):
     R = S.pct_change().drop("RFR", axis=1)
     rfr = S["RFR"]
     vol = R.std()
-    leverage = vol.mean() / vol
+    target_vol = vol[target] if target else vol.mean()
+    leverage = target_vol / vol
     R = (leverage * (R.sub(rfr / 252, axis=0))).add(rfr / 252, axis=0)
     S = (1 + R.fillna(0)).cumprod()
     S["RFR"] = rfr
