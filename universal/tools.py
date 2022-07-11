@@ -126,7 +126,7 @@ def opt_weights(
     max_leverage=1,
     rf_rate=0.0,
     alpha=0.0,
-    freq=252,
+    freq: float = 252,
     no_cash=False,
     sd_factor=1.0,
     **kwargs,
@@ -489,7 +489,7 @@ def sharpe_std(r, rf_rate=None, freq=None):
     return np.sqrt((1.0 + sh**2 / 2.0) * freq / n)
 
 
-def freq(ix):
+def freq(ix: pd.Index) -> float:
     """Number of data items per year. If data does not contain
     datetime index, assume daily frequency with 252 trading days a year."""
     assert isinstance(ix, pd.Index), "freq method only accepts pd.Index object"

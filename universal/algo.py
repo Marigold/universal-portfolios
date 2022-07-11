@@ -1,6 +1,7 @@
 import copy
 import itertools
 import logging
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -30,7 +31,7 @@ class Algo(object):
     #    raw:    pt
     PRICE_TYPE = "ratio"
 
-    def __init__(self, min_history=None, frequency=1, **kwargs):
+    def __init__(self, min_history: Optional[int] = None, frequency: int = 1, **kwargs):
         """Subclass to define algo specific parameters here.
         :param min_history: If not None, use initial weights for first min_window days. Use
             this if the algo needs some history for proper parameter estimation.

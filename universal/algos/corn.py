@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import pandas as pd
 from cvxopt import matrix, solvers
@@ -28,7 +30,7 @@ class CORN(Algo):
     PRICE_TYPE = "ratio"
     REPLACE_MISSING = True
 
-    def __init__(self, window=5, rho=0.1, fast_version=True):
+    def __init__(self, window: int = 5, rho: float = 0.1, fast_version: bool = True):
         """
         :param window: Window parameter.
         :param rho: Correlation coefficient threshold. Recommended is 0.
@@ -47,23 +49,25 @@ class CORN(Algo):
         self.fast_version = fast_version
 
         # assign step method dynamically
-        self.step = self.step_fast if self.fast_version else self.step_slow
+        self.step = self.step_fast if self.fast_version else self.step_slow  # type: ignore
 
-    def init_weights(self, columns):
+    def init_weights(self, columns: List[str]) -> np.ndarray:
         m = len(columns)
         return np.ones(m) / m
 
-    def init_step(self, X):
+    def init_step(self, X: pd.DataFrame) -> np.ndarray:
         if self.fast_version:
             # redefine index to enumerate
-            X.index = range(len(X))
+            X.index = np.arange(len(X))
 
             foo = [X.shift(i) for i in range(self.window)]
             self.X_flat = pd.concat(foo, axis=1)
             self.X = X
             self.t = self.min_history - 1
 
-    def step_slow(self, x, last_b, history):
+    def step_slow(
+        self, x: pd.Series, last_b: pd.Series, history: pd.DataFrame
+    ) -> np.ndarray:
         if len(history) <= self.window:
             return last_b
         else:
@@ -89,7 +93,9 @@ class CORN(Algo):
 
             return b
 
-    def step_fast(self, x, last_b, history):
+    def step_fast(
+        self, x: pd.Series, last_b: pd.Series, history: pd.DataFrame
+    ) -> np.ndarray:
         # iterate time
         self.t += 1
 
@@ -113,7 +119,7 @@ class CORN(Algo):
 
             return b
 
-    def optimal_weights(self, X):
+    def optimal_weights(self, X: pd.DataFrame) -> np.ndarray:
         if len(X) == 1:
             freq = 252
         else:
