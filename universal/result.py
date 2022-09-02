@@ -155,40 +155,28 @@ class AlgoResult(PickleMixin):
         return tools.sharpe_std(self.r - 1, rf_rate=self.rf_rate, freq=self.freq())
 
     @property
-    def ucrp_sharpe(self):
-        from universal.algos import CRP
+    def benchmark_sharpe_std(self):
+        return self._benchmark_result().sharpe_std
 
-        result = CRP().run(self.X.cumprod())
-        result.set_rf_rate(self.rf_rate)
-        return result.sharpe
-
-    @property
-    def ucrp_sharpe_std(self):
-        from universal.algos import CRP
-
-        result = CRP().run(self.X.cumprod())
-        result.set_rf_rate(self.rf_rate)
-        return result.sharpe_std
-
-    def _capm_ucrp(self):
+    def _capm_benchmark(self):
         y = (self.r).cumprod()
         y.name = "r"
-        bases = (self.ucrp_r).cumprod().to_frame()
-        bases.columns = ["ucrp"]
+        bases = (self.benchmark_r).cumprod().to_frame()
+        bases.columns = ["benchmark"]
 
         return tools.capm(y, bases, rf=self.rf_rate)
 
     @property
-    def appraisal_ucrp(self):
-        c = self._capm_ucrp()
+    def appraisal_benchmark(self):
+        c = self._capm_benchmark()
         alpha = c["alpha"]
         sd = c["residual"].pct_change().std() * np.sqrt(self.freq())
         # regularization term in case sd is too low
         return alpha / (sd + 1e-3)
 
     @property
-    def appraisal_ucrp_std(self):
-        c = self._capm_ucrp()
+    def appraisal_benchmark_std(self):
+        c = self._capm_benchmark()
         sd = c["residual"].pct_change().std()
         alpha_std = (
             np.sqrt(c["model"].cov_params().loc["Intercept", "Intercept"])
@@ -229,7 +217,7 @@ class AlgoResult(PickleMixin):
     @property
     def information(self):
         """Information ratio benchmarked against uniform CRP portfolio."""
-        x = self.r - self.ucrp_r
+        x = self.r - self.benchmark_r
 
         mu, sd = x.mean(), x.std()
 
@@ -242,12 +230,8 @@ class AlgoResult(PickleMixin):
             return 0.0
 
     @property
-    def ucrp_sharpe(self):
-        from .algos import CRP
-
-        result = CRP().run(self.X.cumprod())
-        result.set_rf_rate(self.rf_rate)
-        return result.sharpe
+    def benchmark_sharpe(self):
+        return self._benchmark_result().sharpe
 
     @property
     def growth_rate(self):
@@ -322,14 +306,24 @@ class AlgoResult(PickleMixin):
         return tools.freq(x.index)
 
     @property
-    def ucrp_r(self):
-        return (self.X.drop("CASH", axis=1, errors="ignore") - 1).mean(1) + 1
+    def benchmark_r(self):
+        if hasattr(self, "_benchmark"):
+            return self._benchmark
+        # use UCRP by default
+        else:
+            return (self.X.drop("CASH", axis=1, errors="ignore") - 1).mean(1) + 1
+
+    @benchmark_r.setter
+    def benchmark_r(self, s):
+        if (s > 1).any():
+            raise ValueError("Benchmark returns should be around zero")
+        self._benchmark = s + 1
 
     @property
     def residual_r(self):
-        """Portfolio minus UCRP"""
+        """Portfolio minus benchmark"""
         _, beta = self.alpha_beta()
-        return (self.r - 1) - beta * (self.ucrp_r - 1) + 1
+        return (self.r - 1) - beta * (self.benchmark_r - 1) + 1
 
     @property
     def residual_capm(self):
@@ -342,11 +336,11 @@ class AlgoResult(PickleMixin):
     def alpha_beta(self):
         y = (self.r).cumprod()
         y.name = "r"
-        bases = (self.ucrp_r).cumprod().to_frame()
-        bases.columns = ["ucrp"]
+        bases = (self.benchmark_r).cumprod().to_frame()
+        bases.columns = ["benchmark"]
 
         c = tools.capm(y, bases, rf=self.rf_rate)
-        return c["alpha"], c["betas"]["ucrp"]
+        return c["alpha"], c["betas"]["benchmark"]
 
     def summary(self, name=None, capm=False):
         """
@@ -363,9 +357,9 @@ class AlgoResult(PickleMixin):
     Profit factor: {self.profit_factor:.2f}
     Sharpe ratio: {self.sharpe:.2f} ± {self.sharpe_std:.2f}
     Ulcer index: {self.ulcer:.2f}
-    Information ratio (wrt UCRP): {self.information:.2f}
-    UCRP sharpe: {self.ucrp_sharpe:.2f} ± {self.ucrp_sharpe_std:.2f}
-    Appraisal ratio (wrt UCRP): {self.appraisal_ucrp:.2f} ± {self.appraisal_ucrp_std:.2f}
+    Information ratio (wrt benchmark): {self.information:.2f}
+    Benchmark sharpe: {self.benchmark_sharpe:.2f} ± {self.benchmark_sharpe_std:.2f}
+    Appraisal ratio (wrt benchmark): {self.appraisal_benchmark:.2f} ± {self.appraisal_benchmark_std:.2f}
     """
             + capm_metrics
             + f"""Beta / Alpha: {beta:.2f} / {alpha:.3%}
@@ -406,7 +400,7 @@ class AlgoResult(PickleMixin):
             else:
                 B = self.B.copy()
 
-            figsize = plt.rcParams["figure.figsize"]
+            figsize = plt.rcParams["figure.figsize"]  # type: ignore
             plt.figure(1, figsize=(figsize[0] * 2, figsize[1] * 1.5))
             ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
             res.plot(assets=assets, ax=ax1, color=color, **kwargs)
@@ -445,15 +439,20 @@ class AlgoResult(PickleMixin):
             plt.ylabel("weights")
             return [ax1, ax2]
 
+    def _benchmark_result(self) -> "AlgoResult":
+        from .algos import CRP
+
+        result = CRP().run(self.benchmark_r.cumprod().to_frame())
+        result.set_rf_rate(self.rf_rate)
+        return result
+
     def hedge(self, result=None):
         """Hedge results with results of other strategy (subtract weights).
         :param result: Other result object. Default is UCRP.
         :return: New AlgoResult object.
         """
         if result is None:
-            from .algos import CRP
-
-            result = CRP().run(self.X.cumprod())
+            result = self._benchmark_result()
 
         return AlgoResult(self.X, self.B - result.B)
 
@@ -607,4 +606,4 @@ def _hash(s):
 
 def _colors_hash(columns, n=19):
     palette = sns.color_palette(n_colors=n)
-    return ["blue" if c == "PORTFOLIO" else palette[_hash(c) % n] for c in columns]
+    return ["blue" if c == "PORTFOLIO" else palette[_hash(c) % n] for c in columns]  # type: ignore

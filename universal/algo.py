@@ -112,7 +112,7 @@ class Algo(object):
             for i in range(int(len(ix) / chunksize + 1))
         ]
 
-    def run(self, S, n_jobs=1, log_progress=True):
+    def run(self, S, n_jobs=1, log_progress=True) -> AlgoResult:
         """Run algorithm and get weights.
         :params S: Absolute stock prices. DataFrame with stocks in columns.
         :param show_progress: Log computation progress. Works only for algos with
