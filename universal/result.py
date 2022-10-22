@@ -84,9 +84,12 @@ class AlgoResult(PickleMixin):
         of floats for individual assets with proper indices."""
         if isinstance(value, dict):
             value = pd.Series(value)
+
         if isinstance(value, pd.Series):
             missing = set(self.X.columns) - set(value.index)
             assert len(missing) == 0, "Missing fees for {}".format(missing)
+        else:
+            value = pd.Series(value, index=self.X.columns)
 
         self._fee = value
         self._recalculate()
@@ -104,16 +107,23 @@ class AlgoResult(PickleMixin):
         self.r -= (self.B.sum(axis=1) - 1) * self.rf_rate / self.freq()
 
         # add fees
+        self.fees = self._to_rebalance().abs() * self.fee
+        self.asset_r -= self.fees
+        self.r -= self.fees.sum(axis=1)
+
+        self.r = np.maximum(self.r, 1e-10)
+        self.r_log = np.log(self.r)
+
+    def _fees(self) -> pd.Series:
         if not isinstance(self._fee, float) or self._fee != 0:
             fees = (self.B.shift(-1).mul(self.r, axis=0) - self.B * self.X).abs()
             fees.iloc[0] = self.B.iloc[0]
             fees.iloc[-1] = 0.0
             fees *= self._fee
 
-            self.asset_r -= fees
-            self.r -= fees.sum(axis=1)
-
-        self.r_log = np.log(self.r)
+            return fees
+        else:
+            return self.B * 0
 
     @property
     def weights(self):
@@ -277,27 +287,16 @@ class AlgoResult(PickleMixin):
         all_trades = (x != 0).sum()
         return float(win) / all_trades
 
+    def _to_rebalance(self):
+        return tools.to_rebalance(self.B, self.X)
+
     @property
     def turnover(self):
-        B = self.B
-        X = self.X
-
-        # equity increase
-        E = (B * (X - 1)).sum(axis=1) + 1
-
-        """old version, probably wrong
-        # required new assets
-        R = B.shift(-1).multiply(E, axis=0) / X
-        """
-
-        # calculate new value of assets and normalize by new equity to get
-        # weights for tomorrow
-        hold_B = (B * X).div(E, axis=0)
-
-        D = B - hold_B.shift(1)
+        """Calculate turnover, first time point is ignored."""
+        D = self._to_rebalance()
 
         # rebalancing
-        return D.abs().sum().sum() / (len(B) / self.freq())
+        return D.abs().sum().sum() / (len(D) / self.freq())
 
     def freq(self, x=None):
         """Number of data items per year. If data does not contain
@@ -341,6 +340,10 @@ class AlgoResult(PickleMixin):
 
         c = tools.capm(y, bases, rf=self.rf_rate)
         return c["alpha"], c["betas"]["benchmark"]
+
+    def utility(self, q=1.0):
+        r = self.r - 1
+        return (np.mean(r) - 1 / q * np.mean(r**2)) * self.freq()
 
     def summary(self, name=None, capm=False):
         """

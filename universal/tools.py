@@ -782,3 +782,19 @@ def capm(y: pd.Series, bases: pd.DataFrame, rf=0.0, fee=0.0):
         "model": model,
         "residual": residual,
     }
+
+
+def to_rebalance(B, X):
+    """
+    :param X: price relatives (1 + r)
+    """
+    # equity increase
+    E = (B * (X - 1)).sum(axis=1) + 1
+
+    X = X.copy()
+
+    # calculate new value of assets and normalize by new equity to get
+    # weights for tomorrow
+    hold_B = (B * X).div(E, axis=0)
+
+    return B - hold_B.shift(1)
