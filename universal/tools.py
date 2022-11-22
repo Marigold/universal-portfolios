@@ -610,7 +610,7 @@ def short_assets(S):
     X = S / S.shift(1)
 
     # shorting
-    X = 2 - X
+    X = 1 / X
     X.iloc[0] = S.iloc[0]
 
     # reconstruct original
