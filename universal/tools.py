@@ -272,8 +272,8 @@ def bcrp_weights(X):
     return opt_weights(X)
 
 
-def rolling_cov_pairwise(df, *args, **kwargs):
-    return df.rolling(kwargs["window"]).cov(other=df, pairwise=True)
+def rolling_cov_pairwise(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    return df.rolling(**kwargs).cov(other=df, pairwise=True)
 
 
 def rolling_corr(x, y, **kwargs):
@@ -606,12 +606,16 @@ def fill_regressed_data(S):
 
 
 def short_assets(S):
-    """Create synthetic short assets."""
+    """Create synthetic short assets. If return of an asset is more than 100%, short asset
+    will go to zero."""
     X = S / S.shift(1)
 
     # shorting
     X = 2 - X
     X.iloc[0] = S.iloc[0]
+
+    # negative return means we got bankrupt
+    X = X.clip(lower=0)
 
     # reconstruct original
     return X.cumprod()

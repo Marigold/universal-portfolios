@@ -33,14 +33,14 @@ def test_bias(algo_class, S):
 
 # BAH
 def test_bah(S):
-    """Fees for BAH should be equal to 1 * fee."""
+    """There should be no fees for BAH."""
     FEE = 0.01
     result = algos.BAH().run(S)
     wealth_no_fees = result.total_wealth
     result.fee = FEE
     wealth_with_fees = result.total_wealth
 
-    assert abs(wealth_no_fees * (1 - FEE) - wealth_with_fees) < EPS
+    assert abs(wealth_no_fees - wealth_with_fees) < EPS
 
 
 # CRP

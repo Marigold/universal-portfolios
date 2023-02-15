@@ -416,7 +416,7 @@ class AlgoResult(PickleMixin):
                 color = color[1:]
 
             # plot weights as lines
-            if B.drop(["CASH"], axis=1, errors="ignore").values.min() < -0.01:
+            if np.nanmin(B.drop(["CASH"], axis=1, errors="ignore").values) < -0.01:
                 B.plot(
                     ax=ax2,
                     ylim=(min(0.0, B.values.min()), max(1.0, B.values.max())),
