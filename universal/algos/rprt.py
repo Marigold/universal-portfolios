@@ -24,7 +24,7 @@ class RPRT(Algo):
         :param theta:
         """
 
-        super().__init__(min_history=window, **kwargs)
+        super().__init__(min_history=1, **kwargs)
 
         # input check
         if window < 2:
@@ -36,7 +36,8 @@ class RPRT(Algo):
         self.phi = np.array([])
 
     def init_step(self, X):
-        self.phi = np.ones(len(X.columns))
+        # set initial phi to x1
+        self.phi = X.iloc[1,:] / X.iloc[0,:]
 
     def init_weights(self, columns):
         m = len(columns)
@@ -49,7 +50,7 @@ class RPRT(Algo):
         # compute the reweighted price relative
         D_pred = np.diag(np.array(x_pred))
         last_phi = self.phi
-        last_price_relative = history.iloc[-1, :]
+        last_price_relative = history.iloc[-1, :] / history.iloc[-2, :]
         gamma_pred = (
             self.theta
             * last_price_relative
@@ -66,8 +67,8 @@ class RPRT(Algo):
         return b
 
     def predict(self, hist):
-        """Predict returns on next day."""
-        return hist.apply(self.sma).iloc[-1, :]
+        """Predict next price relative."""
+        return hist.mean() / hist.iloc[-1, :]
 
     def update(self, b, phi_pred, D_pred):
         # Calculate variables
@@ -83,14 +84,16 @@ class RPRT(Algo):
             )
 
         # update portfolio
-        b_ = b + lam * np.dot(D_pred, (phi_pred - phi_pred_mean))
+        if lam != 0: # avoid numerical problem (0 * inf)
+            b_ = b + lam * np.dot(D_pred, (phi_pred - phi_pred_mean))
+        else:
+            b_ = b
+
+        b_ = np.clip(b_, -1e10, 1e10) # avoid numerical problem
 
         # project it onto simplex
         return tools.simplex_proj(y=b_)
 
-    @staticmethod
-    def sma(close):
-        return close.rolling(len(close)).mean()
 
 
 if __name__ == "__main__":
