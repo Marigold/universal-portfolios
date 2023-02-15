@@ -497,7 +497,7 @@ def freq(ix: pd.Index) -> float:
     assert len(ix) > 1, "Index must contain more than one item"
 
     # sort if data is not monotonic
-    if not ix.is_monotonic:
+    if not ix.is_monotonic_increasing:
         ix = ix.sort_values()
 
     if isinstance(ix, pd.DatetimeIndex):
