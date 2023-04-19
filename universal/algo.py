@@ -302,9 +302,6 @@ class Algo(object):
             results = pool.map(
                 _run_algo_params, [(S, cls, all_params) for all_params in params_to_try]
             )
-        results = map(
-            _run_algo_params, [(S, cls, all_params) for all_params in params_to_try]
-        )
 
         return ListResult(results, names)
 

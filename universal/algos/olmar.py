@@ -51,21 +51,21 @@ class OLMAR(Algo):
 
     def step(self, x, last_b, history):
         # calculate return prediction
-        if len(history) < self.window+1:
+        if len(history) < self.window + 1:
             x_pred = history.iloc[-1]
         else:
-            x_pred = self.predict(history.iloc[-self.window :])
+            x_pred = self.predict(x, history.iloc[-self.window :])
         b = self.update(last_b, x_pred, self.eps)
         return b
 
 
-    def predict(self, hist):
+    def predict(self, x, hist):
         """Predict next price relative."""
         if self.ma_type == "SMA":
             return hist.mean() / hist.iloc[-1, :]
         else:
             real_x = hist.iloc[-1, :] / hist.iloc[-2, :]
-            x_pred = self.alpha + (1-self.alpha) * np.divide(self.x_pred, real_x)
+            x_pred = self.alpha + (1 - self.alpha) * np.divide(self.x_pred, real_x)
             self.x_pred = x_pred
             return x_pred
 

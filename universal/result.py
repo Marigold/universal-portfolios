@@ -329,7 +329,7 @@ class AlgoResult(PickleMixin):
         """Portfolio minus CAPM"""
         y = (self.r).cumprod()
         y.name = "r"
-        c = tools.capm(y, self.X.cumprod(), rf=self.rf_rate)
+        c = tools.capm(y, self.X.drop(columns=['CASH'], errors='ignore').cumprod(), rf=self.rf_rate)
         return c["residual"].pct_change() + 1
 
     def alpha_beta(self):
