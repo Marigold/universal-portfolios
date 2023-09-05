@@ -111,6 +111,13 @@ class AlgoResult(PickleMixin):
         self.asset_r -= self.fees
         self.r -= self.fees.sum(axis=1)
 
+        # in case we use CASH in a portfolio, reflect it in r_ex_cash
+        # TODO: this should be likely reflected in `sharpe` and others
+        if "CASH" in self.B.columns and "CASH" in self.X.columns:
+            self.r_ex_cash = self.r - (self.X.CASH - 1) * self.B.CASH
+        else:
+            self.r_ex_cash = self.r
+
         self.r = np.maximum(self.r, 1e-10)
         self.r_log = np.log(self.r)
 
@@ -169,7 +176,7 @@ class AlgoResult(PickleMixin):
         return self._benchmark_result().sharpe_std
 
     def _capm_benchmark(self):
-        y = (self.r).cumprod()
+        y = self.r_ex_cash.cumprod()
         y.name = "r"
         bases = (self.benchmark_r).cumprod().to_frame()
         bases.columns = ["benchmark"]
@@ -197,7 +204,7 @@ class AlgoResult(PickleMixin):
 
     @property
     def appraisal_capm(self):
-        y = (self.r).cumprod()
+        y = (self.r_ex_cash).cumprod()
         y.name = "r"
         c = tools.capm(y, self.X.cumprod(), rf=self.rf_rate)
 
@@ -208,7 +215,7 @@ class AlgoResult(PickleMixin):
 
     @property
     def appraisal_capm_std(self):
-        y = (self.r).cumprod()
+        y = (self.r_ex_cash).cumprod()
         y.name = "r"
         c = tools.capm(y, self.X.cumprod(), rf=self.rf_rate)
 
@@ -227,7 +234,7 @@ class AlgoResult(PickleMixin):
     @property
     def information(self):
         """Information ratio benchmarked against uniform CRP portfolio."""
-        x = self.r - self.benchmark_r
+        x = self.r_ex_cash - self.benchmark_r
 
         mu, sd = x.mean(), x.std()
 
@@ -322,18 +329,22 @@ class AlgoResult(PickleMixin):
     def residual_r(self):
         """Portfolio minus benchmark"""
         _, beta = self.alpha_beta()
-        return (self.r - 1) - beta * (self.benchmark_r - 1) + 1
+        return (self.r_ex_cash - 1) - beta * (self.benchmark_r - 1) + 1
 
     @property
     def residual_capm(self):
         """Portfolio minus CAPM"""
         y = (self.r).cumprod()
         y.name = "r"
-        c = tools.capm(y, self.X.drop(columns=['CASH'], errors='ignore').cumprod(), rf=self.rf_rate)
+        c = tools.capm(
+            y,
+            self.X.drop(columns=["CASH"], errors="ignore").cumprod(),
+            rf=self.rf_rate,
+        )
         return c["residual"].pct_change() + 1
 
     def alpha_beta(self):
-        y = (self.r).cumprod()
+        y = (self.r_ex_cash).cumprod()
         y.name = "r"
         bases = (self.benchmark_r).cumprod().to_frame()
         bases.columns = ["benchmark"]
@@ -609,4 +620,5 @@ def _hash(s):
 
 def _colors_hash(columns, n=19):
     palette = sns.color_palette(n_colors=n)
+    return ["blue" if c == "PORTFOLIO" else palette[_hash(c) % n] for c in columns]  # type: ignore
     return ["blue" if c == "PORTFOLIO" else palette[_hash(c) % n] for c in columns]  # type: ignore

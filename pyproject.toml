@@ -10,7 +10,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
+python = ">=3.8"
 scipy = "^1.8.1"
 matplotlib = "^3.3.1"
 pandas-datareader = "^0.10.0"
@@ -36,5 +36,5 @@ jupyter = "^1.0.0"
 nbdime = "^2.1.0"
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
