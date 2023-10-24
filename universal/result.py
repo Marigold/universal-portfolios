@@ -333,12 +333,17 @@ class AlgoResult(PickleMixin):
 
     @property
     def residual_capm(self):
-        """Portfolio minus CAPM"""
+        """Portfolio minus CAPM on the benchmark."""
         y = (self.r).cumprod()
         y.name = "r"
+        bases = (self.benchmark_r).cumprod().to_frame()
+        bases.columns = ["benchmark"]
+
         c = tools.capm(
             y,
-            self.X.drop(columns=["CASH"], errors="ignore").cumprod(),
+            bases,
+            # NOTE: we used to use CAPM on all assets which is not fair
+            # self.X.drop(columns=["CASH"], errors="ignore").cumprod(),
             rf=self.rf_rate,
         )
         return c["residual"].pct_change() + 1

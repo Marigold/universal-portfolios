@@ -3,8 +3,6 @@ import itertools
 import logging
 import multiprocessing
 import os
-import sys
-import typing as t
 from datetime import datetime
 from time import time
 
@@ -101,13 +99,13 @@ def random_portfolio(n, k, mu=0.0, sd=0.01, corr=None, dt=1.0, nan_pct=0.0):
     R = np.linalg.cholesky(corr).T
 
     # generate uncorrelated random sequence
-    x = np.matrix(np.random.normal(size=(n - 1, k)))
+    x = np.random.normal(size=(n - 1, k))
 
     # correlate the sequences
-    ep = x * R
+    ep = x @ R
 
     # multivariate brownian
-    W = nu * dt + ep * np.diag(sd) * np.sqrt(dt)
+    W = nu * dt + ep @ np.diag(sd) * np.sqrt(dt)
 
     # generate potential path
     S = np.vstack([np.ones((1, k)), np.cumprod(np.exp(W), 0)])
