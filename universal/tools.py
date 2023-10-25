@@ -742,7 +742,7 @@ def tradable_etfs():
 
 
 def same_vol(S, target=None, target_vol=None):
-    R = S.pct_change().drop("RFR", axis=1)
+    R = S.pct_change().drop(columns=["RFR"])
     rfr = S["RFR"]
     vol = R.std()
     if not target_vol:

@@ -317,7 +317,7 @@ class AlgoResult(PickleMixin):
             return self._benchmark
         # use UCRP by default
         else:
-            return (self.X.drop("CASH", axis=1, errors="ignore") - 1).mean(1) + 1
+            return (self.X.drop(columns=["CASH"], errors="ignore") - 1).mean(1) + 1
 
     @benchmark_r.setter
     def benchmark_r(self, s):
@@ -415,7 +415,7 @@ class AlgoResult(PickleMixin):
                 B = self.B.loc[:, ix].copy()
                 assets = B.columns if assets else False
                 if B.shape[1] > 20:
-                    B["_others"] = self.B.drop(ix, axis=1).sum(1)
+                    B["_others"] = self.B.drop(columns=ix).sum(1)
             else:
                 B = self.B.copy()
 
@@ -432,7 +432,7 @@ class AlgoResult(PickleMixin):
                 color = color[1:]
 
             # plot weights as lines
-            if np.nanmin(B.drop(["CASH"], axis=1, errors="ignore").values) < -0.01:
+            if np.nanmin(B.drop(columns=["CASH"], errors="ignore").values) < -0.01:
                 B.plot(
                     ax=ax2,
                     ylim=(min(0.0, B.values.min()), max(1.0, B.values.max())),
@@ -441,7 +441,7 @@ class AlgoResult(PickleMixin):
                 )
             # plot weights as area chart
             else:
-                B = B.drop("CASH", axis=1, errors="ignore")
+                B = B.drop(columns=["CASH"], errors="ignore")
                 # fix rounding errors near zero
                 if B.values.min() < 0:
                     pB = B - B.values.min()

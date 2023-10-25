@@ -32,7 +32,7 @@ class AssetFilter(object):
             0.0, loc=sh_diff.mean(), scale=0.01 + sh_diff.std() / np.sqrt(len(sh_diff))
         )
         to_remove = sh_diff.columns[cdf < self.threshold]
-        to_remove = to_remove.drop("full", errors="ignore")
+        to_remove = to_remove.drop(columns=["full"], errors="ignore")
 
         print(list(to_remove))
         return to_remove
@@ -47,8 +47,8 @@ class AssetFilter(object):
         # find sharpe ratio without assets
         RR = {"full": R_log.sum(1)}
         for col in R.columns:
-            total_ret = R_log.drop(col, 1).sum(1)
-            # total_weights = B.drop(col, 1).sum(1) + 1e-10
+            total_ret = R_log.drop(columns=[col]).sum(1)
+            # total_weights = B.drop(columns=[col]).sum(1) + 1e-10
             RR[col] = total_ret
 
         to_remove = self._filter(pd.DataFrame(RR))
@@ -72,7 +72,7 @@ def filter_result(S, algo, asset_filter=None, result=None):
         cols = asset_filter.fit(R, B)
 
         # get weights with removed assets
-        w = step_fun(x.drop(cols), last_b.drop(cols), history.drop(cols, 1))
+        w = step_fun(x.drop(columns=cols), last_b.drop(columns=cols), history.drop(columns=cols, 1))
 
         # put back assets with zero weights
         w = w.reindex(last_b.index).fillna(0.0)
