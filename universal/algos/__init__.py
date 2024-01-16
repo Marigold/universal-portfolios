@@ -16,6 +16,7 @@ from .olmar import OLMAR
 from .ons import ONS
 from .pamr import PAMR
 from .rmr import RMR
+from .rprt import RPRT
 from .tco import TCO1, TCO2
 from .up import UP
 from .wmamr import WMAMR
