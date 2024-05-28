@@ -1,12 +1,12 @@
 import hashlib
 import pickle
+from typing import Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.colors import ListedColormap
-from statsmodels.api import OLS
+from numpy.typing import NDArray
 
 from universal import tools
 
@@ -388,6 +388,8 @@ class AlgoResult(PickleMixin):
     Max drawdown: {self.max_drawdown:.2%}
     Winning days: {self.winning_pct:.1%}
     Annual turnover: {self.turnover:.1f}
+    Utility (q=0.7): {self.utility(q=0.7):.2%}
+    Utility (q=1.0): {self.utility(q=1.0):.2%}
         """
         )
 
@@ -494,6 +496,30 @@ class AlgoResult(PickleMixin):
         self.B.sum().sort_values(ascending=False).iloc[:15].plot(
             kind="bar", title="Total weights", ax=axes[0]
         )
+
+    def subset(self, subset: Union[NDArray, Tuple[str, str]]) -> "AlgoResult":
+        """Return a subset of results. If the subset is continous, it will return
+        a subset of the index, otherwise it will reindex it to 0..n.
+
+        Note that fees are not calculated correctly if subset is not continuous.
+
+        :param subset: Either boolean array or tuple of (date_from, date_to).
+        """
+        # support for tuple of (date_from, date_to)
+        if isinstance(subset, tuple):
+            subset = (self.B.index >= subset[0]) & (self.B.index <= subset[1])
+
+        sB = self.B[subset].copy()
+        sX = self.X[subset].copy()
+
+        # reindex in case it's not continuous
+        if not _is_continous(subset):
+            sB.index = np.arange(len(sB))
+            sX.index = np.arange(len(sX))
+
+        result = AlgoResult(sX, sB)
+        result.fee = self.fee
+        return result
 
 
 class ListResult(list, PickleMixin):
@@ -627,3 +653,8 @@ def _colors_hash(columns, n=19):
     palette = sns.color_palette(n_colors=n)
     return ["blue" if c == "PORTFOLIO" else palette[_hash(c) % n] for c in columns]  # type: ignore
     return ["blue" if c == "PORTFOLIO" else palette[_hash(c) % n] for c in columns]  # type: ignore
+
+
+def _is_continous(x) -> bool:
+    x = np.diff(x.astype(int))
+    return tuple(x[x != 0]) in [(1,), (1, -1)]
