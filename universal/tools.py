@@ -298,7 +298,8 @@ def rolling_corr(x, y, **kwargs):
             DY = EY2[col_y] - EY[col_y] ** 2
             product = x[col_x] * y[col_y]
             RXY[:, i, j] = product.rolling(**kwargs).mean() - EX[col_x] * EY[col_y]
-            RXY[:, i, j] = RXY[:, i, j] / np.sqrt(DX * DY)
+            if np.sqrt(DX * DY) != 0 : RXY[:, i, j] = RXY[:, i, j] / np.sqrt(DX * DY)
+            else: RXY[:, i, j] = RXY[:, i, j]*0
 
     return RXY, EX.values
 
