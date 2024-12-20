@@ -68,10 +68,11 @@ class Anticor(Algo):
                                 claim[i, j] += abs(M[j, j])
 
                 # calculate transfer
+                claim = np.nan_to_num(claim) #correlation can be nan
                 transfer = claim * 0.0
                 for i in range(m):
                     total_claim = sum(claim[i, :])
-                    if total_claim != 0:
+                    if total_claim != 0 and not np.isnan(total_claim).any(): #transfer should never be nan
                         transfer[i, :] = weights[t, i] * claim[i, :] / total_claim
 
                 # update weights
