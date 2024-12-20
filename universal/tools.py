@@ -90,7 +90,13 @@ def random_portfolio(n, k, mu=0.0, sd=0.01, corr=None, dt=1.0, nan_pct=0.0):
     # default values
     corr = corr if corr is not None else np.eye(k)
     sd = sd * np.ones(k)
-    mu = mu * np.ones(k)
+    if isinstance(mu, (int, float)):
+        mu = mu * np.ones(k)
+    elif mu.ndim == 2:
+        mu = mu[1:, :]
+    else:
+        mu = np.array(mu)[1:, np.newaxis] @ np.ones((1, k))
+        mu = mu[1:, :]
 
     # drift
     nu = mu - sd**2 / 2.0
@@ -478,13 +484,30 @@ def w_std(y, w):
 
 def sharpe_std(r, rf_rate=None, freq=None):
     """Calculate sharpe ratio std. Confidence interval is taken from
-    https://cran.r-project.org/web/packages/SharpeR/vignettes/SharpeRatio.pdf
+    https://quantdare.com/probabilistic-sharpe-ratio
     :param X: log returns
     """
     sh = sharpe(r, rf_rate=rf_rate, freq=freq)
     n = r.notnull().sum()
     freq = freq or _freq(r.index)
-    return np.sqrt((1.0 + sh**2 / 2.0) * freq / n)
+
+    # Normalize sh to daily
+    sh /= np.sqrt(freq)
+
+    # Simpler version
+    # ret = np.sqrt((1.0 + sh**2 / 2.0) / n)
+
+    # More complex version
+    mean_return = np.mean(r)
+    std_dev = np.std(r, ddof=1)
+    skewness = np.mean(((r - mean_return) / std_dev) ** 3)
+    kurtosis = np.mean(((r - mean_return) / std_dev) ** 4)
+    ret = np.sqrt(
+        (1 + sh**2 / 2.0 - skewness * sh + (kurtosis - 3) / 4 * sh**2) / (n - 1)
+    )
+
+    # Back to yearly sharpe
+    return ret * np.sqrt(freq)
 
 
 def freq(ix: pd.Index) -> float:

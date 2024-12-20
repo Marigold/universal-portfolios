@@ -53,6 +53,7 @@ class AlgoResult(PickleMixin):
             self.rf_rate = rf_rate
         else:
             self.rf_rate = rf_rate.reindex(self.X.index)
+            assert self.rf_rate.isnull().sum() == 0, "Some missing risk-free rates"
         self._recalculate()
         return self
 
@@ -165,7 +166,7 @@ class AlgoResult(PickleMixin):
         """Compute annualized sharpe ratio from log returns. If data does
         not contain datetime index, assume daily frequency with 252 trading days a year.
         """
-        return tools.sharpe(self.r - 1, rf_rate=self.rf_rate, freq=self.freq())
+        return tools.sharpe(self.r_ex_cash - 1, rf_rate=self.rf_rate, freq=self.freq())
 
     @property
     def sharpe_std(self):
@@ -295,7 +296,19 @@ class AlgoResult(PickleMixin):
         return float(win) / all_trades
 
     def _to_rebalance(self):
-        return tools.to_rebalance(self.B, self.X)
+        D = tools.to_rebalance(self.B, self.X)
+
+        # special case for Close -> Open and Open -> Close when we rebalance it all
+        # at open and at close (so 2x)
+        # (this is worst case scenario, but it's not gonna be much different in practice)
+        for col in D.columns:
+            if isinstance(col, str) and (col.endswith("_CO") or col.endswith("_OC")):
+                # fancier algo with minimal impact
+                # D[col] = self.B[col].abs() + np.minimum(
+                #     np.abs(D[col] + self.B[col]), self.B[col].abs()
+                # )
+                D[col] = 2 * self.B[col]
+        return D
 
     @property
     def turnover(self):
@@ -325,11 +338,13 @@ class AlgoResult(PickleMixin):
             raise ValueError("Benchmark returns should be around zero")
         self._benchmark = s + 1
 
-    @property
-    def residual_r(self):
-        """Portfolio minus benchmark"""
-        _, beta = self.alpha_beta()
-        return (self.r_ex_cash - 1) - beta * (self.benchmark_r - 1) + 1
+    # NOTE: this is identical to `residual_capm`. The distinction was originally that CAPM
+    # was doing regression against all assets, but that was a bit unfair
+    # @property
+    # def residual_r(self):
+    #     """Portfolio minus benchmark"""
+    #     _, beta = self.alpha_beta()
+    #     return (self.r_ex_cash - 1) - beta * (self.benchmark_r - 1) + 1
 
     @property
     def residual_capm(self):
@@ -388,8 +403,10 @@ class AlgoResult(PickleMixin):
     Max drawdown: {self.max_drawdown:.2%}
     Winning days: {self.winning_pct:.1%}
     Annual turnover: {self.turnover:.1f}
+    Utility (q=0.5): {self.utility(q=0.5):.2%}
     Utility (q=0.7): {self.utility(q=0.7):.2%}
     Utility (q=1.0): {self.utility(q=1.0):.2%}
+    Utility (q=2.0): {self.utility(q=2.0):.2%}
         """
         )
 
@@ -400,6 +417,7 @@ class AlgoResult(PickleMixin):
         portfolio_label="PORTFOLIO",
         show_only_important=True,
         color=None,
+        max_points=2000,
         **kwargs,
     ):
         """Plot equity of all assets plus our strategy.
@@ -409,7 +427,7 @@ class AlgoResult(PickleMixin):
         """
         res = ListResult([self], [portfolio_label])
         if not weights:
-            ax1 = res.plot(assets=assets, color=color, **kwargs)
+            ax1 = res.plot(assets=assets, color=color, max_points=max_points, **kwargs)
             return [ax1]
         else:
             if show_only_important:
@@ -424,7 +442,9 @@ class AlgoResult(PickleMixin):
             figsize = plt.rcParams["figure.figsize"]  # type: ignore
             plt.figure(1, figsize=(figsize[0] * 2, figsize[1] * 1.5))
             ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
-            res.plot(assets=assets, ax=ax1, color=color, **kwargs)
+            res.plot(
+                assets=assets, ax=ax1, color=color, max_points=max_points, **kwargs
+            )
             ax2 = plt.subplot2grid((3, 1), (2, 0), sharex=ax1)
 
             if color is None:
@@ -432,6 +452,9 @@ class AlgoResult(PickleMixin):
             else:
                 # remove first color used for portfolio
                 color = color[1:]
+
+            # reduce number of points to plot
+            B = _max_points(B, max_points)
 
             # plot weights as lines
             if np.nanmin(B.drop(columns=["CASH"], errors="ignore").values) < -0.01:
@@ -580,6 +603,7 @@ class ListResult(list, PickleMixin):
         capm_residual=False,
         assets=False,
         color=None,
+        max_points=50,
         **kwargs,
     ):
         """Plot strategy equity.
@@ -607,7 +631,7 @@ class ListResult(list, PickleMixin):
 
         if color is None:
             color = _colors_hash(D.columns)
-        ax = D.plot(color=color, **kwargs)
+        ax = _max_points(D, max_points).plot(color=color, **kwargs)
         kwargs["ax"] = ax
 
         ax.set_ylabel("Total wealth")
@@ -615,10 +639,10 @@ class ListResult(list, PickleMixin):
         # plot residual strategy
         if residual:
             d["RESIDUAL"] = self[0].residual_r.cumprod()
-            d[["RESIDUAL"]].plot(**kwargs)
+            _max_points(d[["RESIDUAL"]], max_points).plot(**kwargs)
         if capm_residual:
             d["CAPM_RESIDUAL"] = self[0].residual_capm.cumprod()
-            d[["CAPM_RESIDUAL"]].plot(**kwargs)
+            _max_points(d[["CAPM_RESIDUAL"]], max_points).plot(**kwargs)
 
         # plot uniform constant rebalanced portfolio
         if ucrp:
@@ -627,7 +651,7 @@ class ListResult(list, PickleMixin):
             crp_algo = CRP().run(self[0].X.cumprod())
             crp_algo.fee = self[0].fee
             d["UCRP"] = crp_algo.equity
-            d[["UCRP"]].plot(**kwargs)
+            d[["UCRP"]].plot(max_points=max_points, **kwargs)
 
         # add bah
         if bah:
@@ -636,7 +660,7 @@ class ListResult(list, PickleMixin):
             bah_algo = BAH().run(self[0].X.cumprod())
             bah_algo.fee = self[0].fee
             d["BAH"] = bah_algo.equity
-            d[["BAH"]].plot(**kwargs)
+            d[["BAH"]].plot(max_points=max_points, **kwargs)
 
         return ax
 
@@ -658,3 +682,8 @@ def _colors_hash(columns, n=19):
 def _is_continous(x) -> bool:
     x = np.diff(x.astype(int))
     return tuple(x[x != 0]) in [(1,), (1, -1)]
+
+
+def _max_points(X: pd.DataFrame, limit: int) -> pd.DataFrame:
+    ix = np.linspace(0, len(X) - 1, min(limit, len(X)), dtype=int)
+    return X.iloc[ix]
