@@ -2359,7 +2359,7 @@ wheels = [
 
 [[package]]
 name = "universal-portfolios"
-version = "0.4.12"
+version = "0.4.13"
 source = { editable = "." }
 dependencies = [
     { name = "cvxopt" },

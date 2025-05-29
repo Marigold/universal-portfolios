@@ -139,7 +139,7 @@ class Algo(object):
         else:
             with tools.mp_pool(n_jobs) as pool:
                 ix_blocks = self._split_index(
-                    X.index, pool._processes * 2, self.frequency
+                    X.index, getattr(pool, "_processes", 1) * 2, self.frequency
                 )
                 min_histories = np.maximum(
                     np.cumsum([0] + list(map(len, ix_blocks[:-1]))) - 1,
@@ -214,7 +214,7 @@ class Algo(object):
             return ListResult(results, names)
 
     @classmethod
-    def _convert_prices(self, S, method, replace_missing=False):
+    def _convert_prices(cls, S, method, replace_missing=False):
         """Convert prices to format suitable for weight or step function.
         Available price types are:
             ratio:  pt / pt_1

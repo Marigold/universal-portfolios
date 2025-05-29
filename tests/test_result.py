@@ -1,7 +1,5 @@
 from universal import algos
 
-from .test_algos import S  # noqa: F401
-
 
 def test_turnover_and_fees(S):
     algo = algos.BAH()

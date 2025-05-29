@@ -1,6 +1,6 @@
 [project]
 name = "universal-portfolios"
-version = "0.4.12"
+version = "0.4.13"
 description = "Collection of algorithms for online portfolio selection"
 readme = "README.md"
 authors = [
