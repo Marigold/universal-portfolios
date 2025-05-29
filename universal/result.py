@@ -13,23 +13,23 @@ from universal import tools
 
 class PickleMixin(object):
     def save(self, filename):
-        """Save object as a pickle"""
+        """Save object as a pickle."""
         with open(filename, "wb") as f:
             pickle.dump(self, f, -1)
 
     @classmethod
     def load(cls, filename):
-        """Load pickled object."""
+        """Load a pickled object."""
         with open(filename, "rb") as f:
             return pickle.load(f)
 
 
 class AlgoResult(PickleMixin):
-    """Results returned by algo's run method. The class containts useful
-    metrics such as sharpe ratio, mean return, drawdowns, ... and also
+    """Results returned by an algo's run method. The class contains useful
+    metrics such as Sharpe ratio, mean return, drawdowns, etc., and also
     many visualizations.
-    You can specify transactions by setting AlgoResult.fee. Fee is
-    expressed in a percentages as a one-round fee.
+    You can specify transaction costs by setting AlgoResult.fee. Fee is
+    expressed as a percentage as a one-round fee.
     """
 
     def __init__(self, X, B):
@@ -81,7 +81,7 @@ class AlgoResult(PickleMixin):
 
     @fee.setter
     def fee(self, value):
-        """Set transaction costs. Fees can be either float or Series
+        """Set transaction costs. Fees can be either a float or a Series
         of floats for individual assets with proper indices."""
         if isinstance(value, dict):
             value = pd.Series(value)
@@ -113,7 +113,7 @@ class AlgoResult(PickleMixin):
         self.r -= self.fees.sum(axis=1)
 
         # in case we use CASH in a portfolio, reflect it in r_ex_cash
-        # TODO: this should be likely reflected in `sharpe` and others
+        # TODO: this should likely be reflected in `sharpe` and others
         if "CASH" in self.B.columns and "CASH" in self.X.columns:
             self.r_ex_cash = self.r - (self.X.CASH - 1) * self.B.CASH
         else:
@@ -143,7 +143,7 @@ class AlgoResult(PickleMixin):
 
     @property
     def equity_decomposed(self):
-        """Return equity decomposed to individual assets."""
+        """Return equity decomposed into individual assets."""
         return self.asset_r.cumprod()
 
     @property
@@ -163,8 +163,8 @@ class AlgoResult(PickleMixin):
 
     @property
     def sharpe(self):
-        """Compute annualized sharpe ratio from log returns. If data does
-        not contain datetime index, assume daily frequency with 252 trading days a year.
+        """Compute annualized Sharpe ratio from log returns. If data does
+        not contain a datetime index, assume daily frequency with 252 trading days a year.
         """
         return tools.sharpe(self.r_ex_cash - 1, rf_rate=self.rf_rate, freq=self.freq())
 
@@ -271,14 +271,14 @@ class AlgoResult(PickleMixin):
 
     @property
     def drawdown_period(self):
-        """Returns longest drawdown perid. Stagnation is a drawdown too."""
+        """Returns the longest drawdown period. Stagnation is a drawdown too."""
         x = self.equity
         period = [0.0] * len(x)
         peak = 0
         for i in range(len(x)):
             # new peak
-            if x[i] > peak:
-                peak = x[i]
+            if x.iloc[i] > peak:
+                peak = x.iloc[i]
                 period[i] = 0
             else:
                 period[i] = period[i - 1] + 1
@@ -286,7 +286,7 @@ class AlgoResult(PickleMixin):
 
     @property
     def max_drawdown(self):
-        """Returns highest drawdown in percentage."""
+        """Returns the highest drawdown in percentage."""
         x = self.equity
         return max(1.0 - x / x.cummax())
 
@@ -304,7 +304,7 @@ class AlgoResult(PickleMixin):
 
         # special case for Close -> Open and Open -> Close when we rebalance it all
         # at open and at close (so 2x)
-        # (this is worst case scenario, but it's not gonna be much different in practice)
+        # (this is the worst case scenario, but it's not going to be much different in practice)
         for col in D.columns:
             if isinstance(col, str) and (col.endswith("_CO") or col.endswith("_OC")):
                 # fancier algo with minimal impact
@@ -316,14 +316,14 @@ class AlgoResult(PickleMixin):
 
     @property
     def turnover(self):
-        """Calculate turnover, first time point is ignored."""
+        """Calculate turnover; the first time point is ignored."""
         D = self._to_rebalance()
 
         # rebalancing
         return D.abs().sum().sum() / (len(D) / self.freq())
 
     def freq(self, x=None):
-        """Number of data items per year. If data does not contain
+        """Number of data items per year. If data does not contain a
         datetime index, assume daily frequency with 252 trading days a year."""
         x = x or self.r
         return tools.freq(x.index)
@@ -382,7 +382,7 @@ class AlgoResult(PickleMixin):
 
     def summary(self, name=None, capm=False):
         """
-        :param capm: turn on metrics that run CAPM on all assets, can be CPU & memory intensive
+        :param capm: Turn on metrics that run CAPM on all assets; can be CPU & memory intensive.
         """
         if capm:
             capm_metrics = f"Appraisal ratio (CAPM): {self.appraisal_capm:.2f} ± {self.appraisal_capm_std:.2f}\n    "
@@ -396,7 +396,7 @@ class AlgoResult(PickleMixin):
     Sharpe ratio: {self.sharpe:.2f} ± {self.sharpe_std:.2f}
     Ulcer index: {self.ulcer:.2f}
     Information ratio (wrt benchmark): {self.information:.2f}
-    Benchmark sharpe: {self.benchmark_sharpe:.2f} ± {self.benchmark_sharpe_std:.2f}
+    Benchmark Sharpe: {self.benchmark_sharpe:.2f} ± {self.benchmark_sharpe_std:.2f}
     Appraisal ratio (wrt benchmark): {self.appraisal_benchmark:.2f} ± {self.appraisal_benchmark_std:.2f}
     """
             + capm_metrics
@@ -495,7 +495,7 @@ class AlgoResult(PickleMixin):
         return result
 
     def hedge(self, result=None):
-        """Hedge results with results of other strategy (subtract weights).
+        """Hedge results with results of another strategy (subtract weights).
         :param result: Other result object. Default is UCRP.
         :return: New AlgoResult object.
         """
@@ -525,12 +525,12 @@ class AlgoResult(PickleMixin):
         )
 
     def subset(self, subset: Union[NDArray, Tuple[str, str]]) -> "AlgoResult":
-        """Return a subset of results. If the subset is continous, it will return
+        """Return a subset of results. If the subset is continuous, it will return
         a subset of the index, otherwise it will reindex it to 0..n.
 
-        Note that fees are not calculated correctly if subset is not continuous.
+        Note that fees are not calculated correctly if the subset is not continuous.
 
-        :param subset: Either boolean array or tuple of (date_from, date_to).
+        :param subset: Either a boolean array or a tuple of (date_from, date_to).
         """
         # support for tuple of (date_from, date_to)
         if isinstance(subset, tuple):
@@ -563,7 +563,7 @@ class ListResult(list, PickleMixin):
         self.names.append(name)
 
     def to_dataframe(self):
-        """Calculate equities for all results and return one dataframe."""
+        """Calculate equities for all results and return one DataFrame."""
         eq = {}
         for result, name in zip(self, self.names):
             eq[name] = result.equity
@@ -660,7 +660,7 @@ class ListResult(list, PickleMixin):
             crp_algo = CRP().run(self[0].X.cumprod())
             crp_algo.fee = self[0].fee
             d["UCRP"] = crp_algo.equity
-            d[["UCRP"]].plot(max_points=max_points, **kwargs)
+            _max_points(d[["UCRP"]], max_points).plot(**kwargs)
 
         # add bah
         if bah:
@@ -669,7 +669,7 @@ class ListResult(list, PickleMixin):
             bah_algo = BAH().run(self[0].X.cumprod())
             bah_algo.fee = self[0].fee
             d["BAH"] = bah_algo.equity
-            d[["BAH"]].plot(max_points=max_points, **kwargs)
+            _max_points(d[["BAH"]], max_points).plot(**kwargs)
 
         return ax
 

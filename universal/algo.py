@@ -231,7 +231,7 @@ class Algo(object):
 
             if replace_missing:
                 X.iloc[0] = 1.0
-                X = X.fillna(method="ffill")
+                X = X.ffill()
 
             return X
 
@@ -240,7 +240,7 @@ class Algo(object):
 
         elif method in ("ratio", "log"):
             # be careful about NaN values
-            X = S / S.shift(1).fillna(method="ffill")
+            X = S / S.shift(1).ffill()
             for name, s in X.items():
                 X[name].iloc[s.index.get_loc(s.first_valid_index()) - 1] = 1.0
 

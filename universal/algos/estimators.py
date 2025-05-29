@@ -645,7 +645,7 @@ class JPMEstimator(object):
             "Annualized Volatility",
             f"Compound Return {self.year - 1}",
         ] + list(df.columns[6:])
-        df["class"] = df["class"].fillna(method="ffill")
+        df["class"] = df["class"].ffill()
 
         # correlation matrix
         corr = df.iloc[:, 6:]
