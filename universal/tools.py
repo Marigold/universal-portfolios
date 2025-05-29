@@ -22,11 +22,19 @@ solvers.options["show_progress"] = False
 @contextlib.contextmanager
 def mp_pool(n_jobs):
     n_jobs = multiprocessing.cpu_count() if n_jobs == -1 else n_jobs
-    pool = multiprocessing.Pool(n_jobs)
-    try:
-        yield pool
-    finally:
-        pool.close()
+    if n_jobs == 1:
+        # For single-threaded execution, use a dummy context that provides map function
+        class DummyPool:
+            def map(self, func, iterable):
+                return [func(item) for item in iterable]
+
+        yield DummyPool()
+    else:
+        pool = multiprocessing.Pool(n_jobs)
+        try:
+            yield pool
+        finally:
+            pool.close()
 
 
 def dataset(name):

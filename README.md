@@ -71,13 +71,7 @@ pip install universal-portfolios
 
 ## Development
 
-Set up .venv and install dependencies:
-
-```
-make test
-```
-
-## Running Tests
+Set up .venv, install dependencies and run tests with:
 
 ```
 make test

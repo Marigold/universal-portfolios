@@ -119,7 +119,7 @@ class CovarianceEstimator(object):
             )
         else:
             # compute full covariance for non-NaN columns
-            Yn = Y.dropna(1, how="any")
+            Yn = Y.dropna(axis=1, how="any")
             full_cov = self.cov_est.fit(Yn).covariance_
             full_cov = pd.DataFrame(full_cov, index=Yn.columns, columns=Yn.columns)
             full_cov = full_cov.reindex(Y.columns).reindex(columns=Y.columns)
