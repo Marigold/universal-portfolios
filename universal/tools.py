@@ -435,6 +435,9 @@ def ulcer(r, rf_rate=0.0, freq=None):
     else:
         drawdown = 1 - x / np.maximum.accumulate(x)
 
+    if (drawdown == 0).all():
+        return 0
+
     return mu / np.sqrt((drawdown**2).mean())
 
 
@@ -462,6 +465,9 @@ def sharpe(r, rf_rate=0.0, alpha=0.0, freq=None, sd_factor=1.0, w=None):
 
     mu = mu * freq
     sd = sd * np.sqrt(freq)
+
+    if sd + alpha == 0:
+        return 0
 
     sh = mu / (sd + alpha) ** sd_factor
 

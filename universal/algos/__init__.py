@@ -20,3 +20,29 @@ from .rprt import RPRT
 from .tco import TCO1, TCO2
 from .up import UP
 from .wmamr import WMAMR
+
+__all__ = [
+    "Anticor",
+    "BAH",
+    "BCRP",
+    "BestMarkowitz",
+    "BestSoFar",
+    "BNN",
+    "CORN",
+    "CRP",
+    "CWMR",
+    "DynamicCRP",
+    "EG",
+    # All names from estimators are included via import *
+    "Kelly",
+    "MPT",
+    "OLMAR",
+    "ONS",
+    "PAMR",
+    "RMR",
+    "RPRT",
+    "TCO1",
+    "TCO2",
+    "UP",
+    "WMAMR",
+]

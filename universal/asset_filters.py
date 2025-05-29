@@ -72,7 +72,11 @@ def filter_result(S, algo, asset_filter=None, result=None):
         cols = asset_filter.fit(R, B)
 
         # get weights with removed assets
-        w = step_fun(x.drop(columns=cols), last_b.drop(columns=cols), history.drop(columns=cols, 1))
+        w = step_fun(
+            x.drop(columns=cols),
+            last_b.drop(columns=cols),
+            history.drop(columns=cols, axis=1),
+        )
 
         # put back assets with zero weights
         w = w.reindex(last_b.index).fillna(0.0)

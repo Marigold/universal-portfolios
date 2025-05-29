@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from .. import tools
 from ..algo import Algo
@@ -46,7 +45,7 @@ class OLMAR(Algo):
         return np.ones(m) / m
 
     def init_step(self, X):
-        #self.x_pred = X.iloc[1, :] / X.iloc[0, :]
+        # self.x_pred = X.iloc[1, :] / X.iloc[0, :]
         self.x_pred = X.iloc[0, :]
 
     def step(self, x, last_b, history):
@@ -58,7 +57,6 @@ class OLMAR(Algo):
         b = self.update(last_b, x_pred, self.eps)
         return b
 
-
     def predict(self, x, hist):
         """Predict next price relative."""
         if self.ma_type == "SMA":
@@ -68,7 +66,6 @@ class OLMAR(Algo):
             x_pred = self.alpha + (1 - self.alpha) * np.divide(self.x_pred, real_x)
             self.x_pred = x_pred
             return x_pred
-
 
     def update(self, b, x_pred, eps):
         """Update portfolio weights to satisfy constraint b * x >= eps
@@ -84,10 +81,8 @@ class OLMAR(Algo):
         # update portfolio
         b = b + lam * (excess_return)
 
-
         # project it onto simplex
         return tools.simplex_proj(b)
-
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ SQRT3OVER2 = math.sqrt(3) / 2.0
 DEFAULT_COLOR_MAP = pyplot.get_cmap("jet")
 # DEFAULT_COLOR_MAP = pyplot.get_cmap('gist_stern')
 
+
 ## Helpers ##
 def unzip(l):
     # return [x for (x,y) in l], [y for (x,y) in l]
@@ -44,7 +45,7 @@ def draw_boundary(scale=1.0, linewidth=2.0, color="black"):
 ## Curve Plotting ##
 def project_point(p):
     """Maps (x,y,z) coordinates to planar-simplex."""
-    a = p[0]
+    # a = p[0]
     b = p[1]
     c = p[2]
     x = 0.5 * (2 * b + c)

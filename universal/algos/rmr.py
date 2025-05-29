@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 
 from .. import tools
-from ..algo import Algo
 from .olmar import OLMAR
 
 
@@ -11,7 +10,7 @@ def norm(x):
         axis = 0
     else:
         axis = 1
-    return np.sqrt((x ** 2).sum(axis=axis))
+    return np.sqrt((x**2).sum(axis=axis))
 
 
 class RMR(OLMAR):

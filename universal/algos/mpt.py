@@ -61,7 +61,7 @@ class MPT(Algo):
         self.optimizer_options = optimizer_options or {}
 
         if bounds and max_leverage != 1:
-            raise NotImplemented(
+            raise NotImplementedError(
                 "max_leverage cannot be used with bounds, consider removing max_leverage and replace it with bounds1"
             )
 
@@ -81,7 +81,7 @@ class MPT(Algo):
             elif cov_estimator == "single-index":
                 cov_estimator = SingleIndexCovariance()
             else:
-                raise NotImplemented(
+                raise NotImplementedError(
                     "Unknown covariance estimator {}".format(cov_estimator)
                 )
 
@@ -98,7 +98,9 @@ class MPT(Algo):
             elif mu_estimator == "sharpe":
                 mu_estimator = SharpeEstimator()
             else:
-                raise NotImplemented("Unknown mu estimator {}".format(mu_estimator))
+                raise NotImplementedError(
+                    "Unknown mu estimator {}".format(mu_estimator)
+                )
 
         self.cov_estimator = cov_estimator
         self.mu_estimator = mu_estimator
@@ -173,7 +175,7 @@ class MPT(Algo):
 
         if self.method == "sharpe":
             grad_sharpe = mu.T / p_vol
-            grad_vol = -sigma * w.T * p_mu / p_vol ** 3
+            grad_vol = -sigma * w.T * p_mu / p_vol**3
 
             grad_sharpe = pd.Series(np.array(grad_sharpe).ravel(), index=last_b.index)
             grad_vol = pd.Series(np.array(grad_vol).ravel(), index=last_b.index)
@@ -194,7 +196,9 @@ class MPT(Algo):
             else:
                 return q * grad_mu - 2 * grad_sigma
         else:
-            raise NotImplemented("Method {} not yet implemented".format(self.method))
+            raise NotImplementedError(
+                "Method {} not yet implemented".format(self.method)
+            )
 
     def step(self, x, last_b, history, **kwargs):
         # get sigma and mu estimates
@@ -202,7 +206,7 @@ class MPT(Algo):
 
         if self.bounds.keys() - X.columns - {"all"}:
             raise Exception(
-                f'Bounds for undefined symbols {self.bounds.keys() - X.columns - set(["all"])}'
+                f"Bounds for undefined symbols {self.bounds.keys() - X.columns - set(['all'])}"
             )
 
         # remove assets with NaN values
@@ -229,7 +233,7 @@ class MPT(Algo):
         sigma = self.cov_estimator.fit(X - 1)
         mu = self.mu_estimator.fit(X, sigma)
 
-        ss = pd.Series(np.diag(sigma), index=sigma.columns)
+        # ss = pd.Series(np.diag(sigma), index=sigma.columns)
 
         assert (mu.index == X.columns).all()
 

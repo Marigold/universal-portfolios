@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
 from .. import tools
 from ..algo import Algo

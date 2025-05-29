@@ -2,7 +2,6 @@ import numpy as np
 
 from .. import tools
 from ..algo import Algo
-from .crp import CRP
 
 
 class BestSoFar(Algo):

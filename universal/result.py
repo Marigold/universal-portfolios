@@ -196,6 +196,8 @@ class AlgoResult(PickleMixin):
     def appraisal_benchmark_std(self):
         c = self._capm_benchmark()
         sd = c["residual"].pct_change().std()
+        if sd == 0:
+            return 0.0
         alpha_std = (
             np.sqrt(c["model"].cov_params().loc["Intercept", "Intercept"])
             / sd
@@ -293,6 +295,8 @@ class AlgoResult(PickleMixin):
         x = self.r_log
         win = (x > 0).sum()
         all_trades = (x != 0).sum()
+        if all_trades == 0:
+            return 0.0
         return float(win) / all_trades
 
     def _to_rebalance(self):
@@ -387,7 +391,7 @@ class AlgoResult(PickleMixin):
 
         alpha, beta = self.alpha_beta()
         return (
-            f"""Summary{'' if name is None else ' for ' + name}:
+            f"""Summary{"" if name is None else " for " + name}:
     Profit factor: {self.profit_factor:.2f}
     Sharpe ratio: {self.sharpe:.2f} ± {self.sharpe_std:.2f}
     Ulcer index: {self.ulcer:.2f}
@@ -636,13 +640,18 @@ class ListResult(list, PickleMixin):
 
         ax.set_ylabel("Total wealth")
 
+        # we need to remove it to be able to plot residual
+        ax.legend_.remove()
+
         # plot residual strategy
         if residual:
             d["RESIDUAL"] = self[0].residual_r.cumprod()
             _max_points(d[["RESIDUAL"]], max_points).plot(**kwargs)
         if capm_residual:
             d["CAPM_RESIDUAL"] = self[0].residual_capm.cumprod()
-            _max_points(d[["CAPM_RESIDUAL"]], max_points).plot(**kwargs)
+            _max_points(d[["CAPM_RESIDUAL"]], max_points).plot(**kwargs, legend=False)
+
+        ax.legend(D.columns)
 
         # plot uniform constant rebalanced portfolio
         if ucrp:

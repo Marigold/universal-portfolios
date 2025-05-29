@@ -1,9 +1,6 @@
-from typing import List
-
 import numpy as np
 import pandas as pd
-from cvxopt import matrix, solvers
-from numpy import matrix
+from cvxopt import solvers
 
 from .. import tools
 from ..algo import Algo
@@ -51,7 +48,7 @@ class CORN(Algo):
         # assign step method dynamically
         self.step = self.step_fast if self.fast_version else self.step_slow  # type: ignore
 
-    def init_weights(self, columns: List[str]) -> np.ndarray:
+    def init_weights(self, columns: list[str]) -> np.ndarray:
         m = len(columns)
         return np.ones(m) / m
 

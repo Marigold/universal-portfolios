@@ -1,8 +1,6 @@
-import logging
-
 import numpy as np
 import pandas as pd
-from cvxopt import matrix, solvers
+from cvxopt import solvers
 
 from .. import tools
 from ..algo import Algo

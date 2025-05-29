@@ -93,7 +93,7 @@ class Algo(object):
             last_b = self.step(x, last_b, history)
 
             # convert last_b to suitable format if needed
-            if type(last_b) == np.matrix:
+            if isinstance(last_b, np.matrix):
                 # remove dimension
                 last_b = np.squeeze(np.array(last_b))
 

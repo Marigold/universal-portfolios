@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import pandas as pd
 
 from .. import tools
 from ..algo import Algo
@@ -37,7 +36,7 @@ class RPRT(Algo):
 
     def init_step(self, X):
         # set initial phi to x1
-        self.phi = X.iloc[1,:] / X.iloc[0,:]
+        self.phi = X.iloc[1, :] / X.iloc[0, :]
 
     def init_weights(self, columns):
         m = len(columns)
@@ -84,16 +83,15 @@ class RPRT(Algo):
             )
 
         # update portfolio
-        if lam != 0: # avoid numerical problem (0 * inf)
+        if lam != 0:  # avoid numerical problem (0 * inf)
             b_ = b + lam * np.dot(D_pred, (phi_pred - phi_pred_mean))
         else:
             b_ = b
 
-        b_ = np.clip(b_, -1e10, 1e10) # avoid numerical problem
+        b_ = np.clip(b_, -1e10, 1e10)  # avoid numerical problem
 
         # project it onto simplex
         return tools.simplex_proj(y=b_)
-
 
 
 if __name__ == "__main__":

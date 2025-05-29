@@ -87,21 +87,11 @@ Exporting dependencies to the `requirements.txt` file is needed for mybinder.org
 poetry export --without-hashes -f requirements.txt > requirements.txt
 ```
 
-### Formatting
-
-We use pre-commit hook to automatically format code and check for linting errors before each commit. If the checks fail you need to resolve the errors and amend the change set.
-
-To setup the pre-commit hooks you need to [install it first](https://pre-commit.com/#installation) and then enter the project root directory and invoke the command (only once!):
-
-```
-pre-commit install
-```
-
 
 ## Running Tests
 
 ```
-poetry run python -m pytest --capture=no --ff -x tests/
+make test
 ```
 
 ## Contributors

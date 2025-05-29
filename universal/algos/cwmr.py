@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import scipy.stats
 from numpy import diag, log, sqrt, trace
 from numpy.linalg import inv
@@ -42,7 +41,7 @@ class CWMR(Algo):
 
     def init_step(self, X):
         m = X.shape[1]
-        self.sigma = np.matrix(np.eye(m) / m ** 2)
+        self.sigma = np.matrix(np.eye(m) / m**2)
 
     def step(self, x, last_b, history):
         # initialize
@@ -63,7 +62,7 @@ class CWMR(Algo):
 
         # 6. Normalize mu and sigma
         mu = tools.simplex_proj(mu)
-        sigma = sigma / (m ** 2 * trace(sigma))
+        sigma = sigma / (m**2 * trace(sigma))
         """
         sigma(sigma < 1e-4*eye(m)) = 1e-4;
         """
@@ -72,27 +71,23 @@ class CWMR(Algo):
 
     def update(self, x, x_upper, mu, sigma, M, V, theta, eps):
         # lambda from equation 7
-        foo = (
-            V - x_upper * x.T * np.sum(sigma, axis=1)
-        ) / M ** 2 + V * theta ** 2 / 2.0
-        a = foo ** 2 - V ** 2 * theta ** 4 / 4
+        foo = (V - x_upper * x.T * np.sum(sigma, axis=1)) / M**2 + V * theta**2 / 2.0
+        a = foo**2 - V**2 * theta**4 / 4
         b = 2 * (eps - log(M)) * foo
-        c = (eps - log(M)) ** 2 - V * theta ** 2
+        c = (eps - log(M)) ** 2 - V * theta**2
 
         a, b, c = a[0, 0], b[0, 0], c[0, 0]
 
         lam = max(
             0,
-            (-b + sqrt(b ** 2 - 4 * a * c)) / (2.0 * a),
-            (-b - sqrt(b ** 2 - 4 * a * c)) / (2.0 * a),
+            (-b + sqrt(b**2 - 4 * a * c)) / (2.0 * a),
+            (-b - sqrt(b**2 - 4 * a * c)) / (2.0 * a),
         )
         # bound it due to numerical problems
         lam = min(lam, 1e7)
 
         # update mu and sigma
-        U_sqroot = 0.5 * (
-            -lam * theta * V + sqrt(lam ** 2 * theta ** 2 * V ** 2 + 4 * V)
-        )
+        U_sqroot = 0.5 * (-lam * theta * V + sqrt(lam**2 * theta**2 * V**2 + 4 * V))
         mu = mu - lam * sigma * (x - x_upper) / M
         sigma = inv(inv(sigma) + theta * lam / U_sqroot * diag(x) ** 2)
         """
@@ -111,7 +106,7 @@ class CWMR_VAR(CWMR):
 
     def update(self, x, x_upper, mu, sigma, M, V, theta, eps):
         # lambda from equation 7
-        foo = (V - x_upper * x.T * np.sum(sigma, axis=1)) / M ** 2
+        foo = (V - x_upper * x.T * np.sum(sigma, axis=1)) / M**2
         a = 2 * theta * V * foo
         b = foo + 2 * theta * V * (eps - log(M))
         c = eps - log(M) - theta * V
@@ -120,8 +115,8 @@ class CWMR_VAR(CWMR):
 
         lam = max(
             0,
-            (-b + sqrt(b ** 2 - 4 * a * c)) / (2.0 * a),
-            (-b - sqrt(b ** 2 - 4 * a * c)) / (2.0 * a),
+            (-b + sqrt(b**2 - 4 * a * c)) / (2.0 * a),
+            (-b - sqrt(b**2 - 4 * a * c)) / (2.0 * a),
         )
         # bound it due to numerical problems
         lam = min(lam, 1e7)
