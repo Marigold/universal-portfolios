@@ -34,12 +34,12 @@ class ONS(Algo):
 
     def init_step(self, X):
         m = X.shape[1]
-        self.A = np.mat(np.eye(m))
-        self.b = np.mat(np.zeros(m)).T
+        self.A = np.asmatrix(np.eye(m))
+        self.b = np.asmatrix(np.zeros(m)).T
 
     def step(self, r, p, history):
         # calculate gradient
-        grad = np.mat(r / np.dot(p, r)).T
+        grad = np.asmatrix(r / np.dot(p, r)).T
         # update A
         self.A += grad * grad.T
         # update b

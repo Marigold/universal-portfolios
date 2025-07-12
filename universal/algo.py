@@ -66,16 +66,18 @@ class Algo(object):
     def weights(self, X, min_history=None, log_progress=True):
         """Return weights. Call step method to update portfolio sequentially. Subclass
         this method only at your own risk."""
-        min_history = self.min_history if min_history is None else min_history
-
         # init
         B = X.copy() * 0.0
         last_b = self.init_weights(X.columns)
         if isinstance(last_b, np.ndarray):
             last_b = pd.Series(last_b, X.columns)
 
-        # run algo
+        # init step
         self.init_step(X)
+
+        # get min_history, can be set by init_step
+        min_history = self.min_history if min_history is None else min_history
+
         for t, (_, x) in enumerate(X.iterrows()):
             # save weights
             B.iloc[t] = last_b
