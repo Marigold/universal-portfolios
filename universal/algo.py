@@ -244,7 +244,9 @@ class Algo(object):
             # be careful about NaN values
             X = S / S.shift(1).ffill()
             for name, s in X.items():
-                X[name].iloc[s.index.get_loc(s.first_valid_index()) - 1] = 1.0
+                ix = s.first_valid_index()
+                assert ix is not None, "No valid index for {}".format(name)
+                X[name].iloc[s.index.get_loc(ix) - 1] = 1.0
 
             if replace_missing:
                 X = X.fillna(1.0)
