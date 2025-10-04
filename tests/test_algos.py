@@ -12,6 +12,7 @@ EPS = 1e-10
         algos.RMR,
         algos.OLMAR,
         algos.PAMR,
+        algos.AdaHedge,
     ],
 )
 def test_bias(algo_class, S):
