@@ -409,6 +409,7 @@ class AlgoResult(PickleMixin):
     Annual turnover: {self.turnover:.1f}
     Utility (q=0.5): {self.utility(q=0.5):.2%}
     Utility (q=0.7): {self.utility(q=0.7):.2%}
+    Utility (q=0.8): {self.utility(q=0.8):.2%}
     Utility (q=1.0): {self.utility(q=1.0):.2%}
     Utility (q=2.0): {self.utility(q=2.0):.2%}
         """
