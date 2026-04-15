@@ -697,22 +697,23 @@ class JPMEstimator(object):
 
     def plot(self):
         rets, corr = self._parse_jpm()
-        layout = go.Layout(
-            yaxis={"range": [0, rets[self.col_ret].max() * 1.1]},
-            hovermode="closest",
-            height=800,
-            width=800,
-        )
         # add sharpe ratio to labels
         text = [a + f"<br>{rets.loc[a, 'Sharpe']:.2f}" for a in list(rets.index)]
-        rets.iplot(
-            kind="scatter",
-            mode="markers",
-            x="Annualized Volatility",
-            y=self.col_ret,
-            text=text,
-            layout=layout,
+        fig = go.Figure(
+            data=go.Scatter(
+                x=rets["Annualized Volatility"],
+                y=rets[self.col_ret],
+                mode="markers",
+                text=text,
+            ),
+            layout=go.Layout(
+                yaxis={"range": [0, rets[self.col_ret].max() * 1.1]},
+                hovermode="closest",
+                height=800,
+                width=800,
+            ),
         )
+        fig.show()
 
 
 class JPMMeanEstimator(JPMEstimator):
