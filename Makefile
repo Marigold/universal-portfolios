@@ -19,7 +19,7 @@ help:
 
 upload:
 	@echo '==> Building and uploading to PyPI'
-	rm -rf dist && uv build && uvx twine upload -r marigold dist/*
+	rm -rf dist && uv build && uv tool run twine upload -r marigold dist/*
 
 check-typing:
 	@echo '==> Skipping type checking'
