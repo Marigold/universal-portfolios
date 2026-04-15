@@ -2442,7 +2442,7 @@ wheels = [
 
 [[package]]
 name = "universal-portfolios"
-version = "0.4.15"
+version = "0.4.16"
 source = { editable = "." }
 dependencies = [
     { name = "cvxopt" },
@@ -2483,7 +2483,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=1.1.1" },
     { name = "pandas-datareader", specifier = ">=0.10.0" },
-    { name = "pillow", specifier = ">=10.0.0" },
+    { name = "pillow", specifier = ">=11.2.1" },
     { name = "plotly", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.24.0" },
     { name = "scikit-learn", specifier = ">=1.1.1" },
