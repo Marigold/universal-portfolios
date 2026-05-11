@@ -83,7 +83,7 @@ patsy==1.0.1
     # via statsmodels
 peewee==3.18.1
     # via yfinance
-pillow==11.2.1
+pillow==12.2.0
     # via
     #   matplotlib
     #   universal-portfolios
