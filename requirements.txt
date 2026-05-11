@@ -31,7 +31,7 @@ joblib==1.5.1
     # via scikit-learn
 kiwisolver==1.4.8
     # via matplotlib
-lxml==5.4.0
+lxml==6.1.0
     # via pandas-datareader
 matplotlib==3.10.3
     # via
