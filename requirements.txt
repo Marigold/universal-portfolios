@@ -133,7 +133,7 @@ typing-extensions==4.13.2
     # via beautifulsoup4
 tzdata==2025.2
     # via pandas
-urllib3==2.4.0
+urllib3==2.7.0
     # via
     #   requests
     #   universal-portfolios
