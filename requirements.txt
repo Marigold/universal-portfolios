@@ -25,7 +25,7 @@ fonttools==4.58.1
     # via matplotlib
 frozendict==2.4.6
     # via yfinance
-idna==3.10
+idna==3.15
     # via requests
 joblib==1.5.1
     # via scikit-learn
