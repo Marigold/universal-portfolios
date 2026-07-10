@@ -121,7 +121,7 @@ seaborn==0.13.2
     # via universal-portfolios
 six==1.17.0
     # via python-dateutil
-soupsieve==2.7
+soupsieve==2.8.4
     # via beautifulsoup4
 statsmodels==0.14.5
     # via universal-portfolios
