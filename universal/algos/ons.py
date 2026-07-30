@@ -46,9 +46,7 @@ class ONS(Algo):
         self.b += (1 + 1.0 / self.beta) * grad
 
         # projection of p induced by norm A
-        # numpy 2.2 stubs (the newest available on py3.10) don't resolve matrix.I
-        A_inv = self.A.I  # ty: ignore[unresolved-attribute]
-        pp = self.projection_in_norm(self.delta * A_inv * self.b, self.A)
+        pp = self.projection_in_norm(self.delta * self.A.I * self.b, self.A)
         return pp * (1 - self.eta) + np.ones(len(r)) / float(len(r)) * self.eta
 
     def projection_in_norm(self, x, M):
