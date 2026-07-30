@@ -1,6 +1,6 @@
 [project]
 name = "universal-portfolios"
-version = "0.4.16"
+version = "0.4.17"
 description = "Collection of algorithms for online portfolio selection"
 readme = "README.md"
 authors = [
@@ -29,6 +29,7 @@ dependencies = [
 Repository = "https://github.com/Marigold/universal-portfolios"
 
 [tool.uv]
+exclude-newer = "3 days"
 dev-dependencies = [
     "typing-extensions>=4.0.1",
     "pytest>=6.2.5",
@@ -38,7 +39,8 @@ dev-dependencies = [
     "jupyter>=1.0.0",
     "nbdime>=2.1.0",
     "ruff>=0.1.1",
-    "pyright>=1.1.391",
+    # NOTE: unpinning ty always introduces some new errors, so pin to a known good version
+    "ty==0.0.33",
 ]
 
 [build-system]
@@ -52,7 +54,7 @@ lint.ignore = ["F403","F405","E731", "E741"]
 [tool.hatch.build.targets.wheel]
 packages = ["universal"]
 
-[tool.pyright]
+[tool.ty.src]
 exclude = [
     "**/node_modules",
     "**/__pycache__",
@@ -62,3 +64,11 @@ exclude = [
     "**/.cachedir/",
     "**/.cache/",
 ]
+
+[tool.ty.rules]
+# Noisy with pandas/numpy stubs — see etl for the same pattern
+invalid-argument-type = "ignore"
+no-matching-overload = "ignore"
+invalid-method-override = "ignore"
+unused-ignore-comment = "ignore"
+unused-type-ignore-comment = "ignore"

@@ -36,7 +36,7 @@ check-default:
 	if [ "$$FILE_COUNT" -le 1 ] && [ "$$FILE_COUNT" -gt 0 ]; then \
 		echo "$$CHANGED_PY_FILES" | xargs ruff check --fix; \
 		echo "$$CHANGED_PY_FILES" | xargs ruff format; \
-		echo "$$CHANGED_PY_FILES" | xargs pyright; \
+		echo "$$CHANGED_PY_FILES" | xargs .venv/bin/ty check --python .venv; \
 	else \
 		echo "Too many files, checking all files instead."; \
 		make lint; \
@@ -58,7 +58,7 @@ check-formatting-default: .venv
 
 check-typing-default: .venv
 	@echo '==> Checking types'
-	. .venv/bin/activate && .venv/bin/pyright $(SRC)
+	.venv/bin/ty check $(SRC) --python .venv
 
 unittest-default: .venv
 	@echo '==> Running unit tests'
