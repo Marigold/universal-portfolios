@@ -54,11 +54,13 @@ class UP(Algo):
 
         return b / sum(b)
 
-    def plot_leverage(self, S, leverage=np.linspace(1, 10, 10), **kwargs):
+    def plot_leverage(self, S, leverage=None, **kwargs):
         """Plot graph with leverages on x-axis and total wealth on y-axis.
         :param S: Stock prices.
         :param leverage: List of parameters for leverage.
         """
+        if leverage is None:
+            leverage = np.linspace(1, 10, 10)
         wealths = []
         for lev in leverage:
             self.leverage = lev

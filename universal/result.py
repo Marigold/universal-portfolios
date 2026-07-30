@@ -1,6 +1,5 @@
 import hashlib
 import pickle
-from typing import Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +10,7 @@ from numpy.typing import NDArray
 from universal import tools
 
 
-class PickleMixin(object):
+class PickleMixin:
     def save(self, filename):
         """Save object as a pickle."""
         with open(filename, "wb") as f:
@@ -88,7 +87,7 @@ class AlgoResult(PickleMixin):
 
         if isinstance(value, pd.Series):
             missing = set(self.X.columns) - set(value.index)
-            assert len(missing) == 0, "Missing fees for {}".format(missing)
+            assert len(missing) == 0, f"Missing fees for {missing}"
         else:
             value = pd.Series(value, index=self.X.columns)
 
@@ -306,7 +305,7 @@ class AlgoResult(PickleMixin):
         # at open and at close (so 2x)
         # (this is the worst case scenario, but it's not going to be much different in practice)
         for col in D.columns:
-            if isinstance(col, str) and (col.endswith("_CO") or col.endswith("_OC")):
+            if isinstance(col, str) and col.endswith(("_CO", "_OC")):
                 # fancier algo with minimal impact
                 # D[col] = self.B[col].abs() + np.minimum(
                 #     np.abs(D[col] + self.B[col]), self.B[col].abs()
@@ -525,7 +524,7 @@ class AlgoResult(PickleMixin):
             kind="bar", title="Total weights", ax=axes[0]
         )
 
-    def subset(self, subset: Union[NDArray, Tuple[str, str]]) -> "AlgoResult":
+    def subset(self, subset: NDArray | tuple[str, str]) -> "AlgoResult":
         """Return a subset of results. If the subset is continuous, it will return
         a subset of the index, otherwise it will reindex it to 0..n.
 

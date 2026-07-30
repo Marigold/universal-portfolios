@@ -1,7 +1,6 @@
 import copy
 import itertools
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -11,7 +10,7 @@ from . import tools
 from .result import AlgoResult, ListResult
 
 
-class Algo(object):
+class Algo:
     """Base class for algorithm calculating weights for online portfolio.
     You have to subclass either step method to calculate weights sequentially
     or weights method, which does it at once. weights method might be useful
@@ -31,7 +30,7 @@ class Algo(object):
     #    raw:    pt
     PRICE_TYPE = "ratio"
 
-    def __init__(self, min_history: Optional[int] = None, frequency: int = 1, **kwargs):
+    def __init__(self, min_history: int | None = None, frequency: int = 1, **kwargs):
         """Subclass to define algo specific parameters here.
         :param min_history: If not None, use initial weights for first min_window days. Use
             this if the algo needs some history for proper parameter estimation.
@@ -50,7 +49,6 @@ class Algo(object):
         """Called before step method. Use to initialize persistent variables.
         :param X: Entire stock returns history.
         """
-        pass
 
     def step(self, x, last_b, history=None):
         """Calculate new portfolio weights. If history parameter is omited, step
@@ -122,7 +120,7 @@ class Algo(object):
         :param n_jobs: run step method in parallel (step method can't depend on last weights)
         """
         if log_progress:
-            logging.debug("Running {}...".format(self.__class__.__name__))
+            logging.debug(f"Running {self.__class__.__name__}...")
 
         if isinstance(S, ListResult):
             P = S.to_dataframe()
@@ -164,7 +162,7 @@ class Algo(object):
             B = pd.DataFrame(B, index=P.index, columns=P.columns)
 
         if log_progress:
-            logging.debug("{} finished successfully.".format(self.__class__.__name__))
+            logging.debug(f"{self.__class__.__name__} finished successfully.")
 
         # if we are aggregating strategies, combine weights from strategies
         # and use original assets
@@ -203,7 +201,6 @@ class Algo(object):
                 tools.log_progress(i, total_subsets, by=1)
 
                 yield result, name
-            raise StopIteration
 
         if generator:
             return subset_generator()
@@ -245,7 +242,7 @@ class Algo(object):
             X = S / S.shift(1).ffill()
             for name, s in X.items():
                 ix = s.first_valid_index()
-                assert ix is not None, "No valid index for {}".format(name)
+                assert ix is not None, f"No valid index for {name}"
                 X[name].iloc[s.index.get_loc(ix) - 1] = 1.0
 
             if replace_missing:
@@ -323,5 +320,5 @@ def _parallel_weights(tuple_args):
 
 def _run_algo_params(tuple_args):
     S, cls, params = tuple_args
-    logging.debug("Run combination of parameters: {}".format(params))
+    logging.debug(f"Run combination of parameters: {params}")
     return cls(**params).run(S)

@@ -30,6 +30,9 @@ Repository = "https://github.com/Marigold/universal-portfolios"
 
 [tool.uv]
 exclude-newer = "3 days"
+# ruff/ty are pinned exactly below, so the rolling cutoff only needs to
+# allow picking whatever their currently-pinned release is.
+exclude-newer-package = { ruff = "2030-01-01T00:00:00Z", ty = "2030-01-01T00:00:00Z" }
 
 [dependency-groups]
 # Just what `make test` needs. CI installs only this, skipping the jupyter stack:
@@ -39,8 +42,8 @@ ci = [
     # Both pinned exactly: a new ruff changes the default rule set and the
     # formatter, and a new ty always finds new errors. Either turns CI red with
     # no code change, so upgrades happen deliberately.
-    "ruff==0.11.11",
-    "ty==0.0.33",
+    "ruff==0.16.0",
+    "ty==0.0.65",
 ]
 dev = [
     {include-group = "ci"},
@@ -58,7 +61,15 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 88
-lint.ignore = ["F403","F405","E731", "E741"]
+lint.ignore = [
+    "F403",
+    "F405",
+    "E731",
+    "E741",
+    "DTZ",      # naive dates are the convention in these trading repos; adding tzinfo changes behaviour
+    "LOG015",   # this codebase has no per-module loggers anywhere; adopting one is a design decision, not lint fallout
+    "TRY002",   # raising vanilla Exception is the existing convention; a custom hierarchy is a design decision
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["universal"]

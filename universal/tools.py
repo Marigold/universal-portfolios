@@ -9,8 +9,8 @@ from time import time
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.optimize as optimize
 from cvxopt import matrix, solvers
+from scipy import optimize
 from scipy.special import betaln
 from statsmodels import api as sm
 from statsmodels.api import OLS
@@ -44,7 +44,7 @@ def dataset(name):
     return pd.read_csv(filename)
 
 
-def profile(algo, data=None, to_profile=[]):
+def profile(algo, data=None, to_profile=None):
     """Profile algorithm using line_profiler.
     :param algo: Algorithm instance.
     :param data: Stock prices, default is random portfolio.
@@ -77,7 +77,7 @@ def quickrun(algo, data=None, n=1000, **kwargs):
         data = random_portfolio(n=n, k=3, mu=0.0001)
     t = time()
     result = algo.run(data)
-    logging.debug("Time: {:.2f}s".format(time() - t))
+    logging.debug(f"Time: {time() - t:.2f}s")
 
     print(result.summary())
     result.plot(**kwargs)
@@ -131,7 +131,7 @@ def random_portfolio(n, k, mu=0.0, sd=0.01, corr=None, dt=1.0, nan_pct=0.0):
         r = S * 0 + np.random.random(S.shape)
         S[r < nan_pct] = np.nan
 
-    return pd.DataFrame(S, columns=["S{}".format(i) for i in range(S.shape[1])])
+    return pd.DataFrame(S, columns=[f"S{i}" for i in range(S.shape[1])])
 
 
 def opt_weights(
@@ -161,16 +161,22 @@ def opt_weights(
     if metric == "return":
         objective = lambda b: -np.sum(np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)))
     elif metric == "ulcer":
-        objective = lambda b: -ulcer(
-            np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)), rf_rate=rf_rate, freq=freq
+        objective = lambda b: (
+            -ulcer(
+                np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
+                rf_rate=rf_rate,
+                freq=freq,
+            )
         )
     elif metric == "sharpe":
-        objective = lambda b: -sharpe(
-            np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
-            rf_rate=rf_rate,
-            alpha=alpha,
-            freq=freq,
-            sd_factor=sd_factor,
+        objective = lambda b: (
+            -sharpe(
+                np.log(np.maximum(np.dot(X - 1, b) + 1, 0.0001)),
+                rf_rate=rf_rate,
+                alpha=alpha,
+                freq=freq,
+                sd_factor=sd_factor,
+            )
         )
     elif metric == "drawdown":
 
@@ -266,7 +272,7 @@ def opt_markowitz(
             try:
                 b = maximize(mu, sigma, rf_rate, q)
                 break
-            except ValueError:
+            except ValueError:  # noqa: TRY203 -- pre-existing: dead recovery code below, not touching behavior here
                 raise
                 # deal with singularity
                 logging.warning("Singularity problems")
@@ -388,7 +394,7 @@ def log_progress(i, total, by=1):
     last_progress = ((100 * (i - 1) / total) // by) * by
 
     if progress != last_progress:
-        logging.debug("Progress: {}%...".format(progress))
+        logging.debug(f"Progress: {progress}%...")
 
 
 def mu_std(R, rf_rate=None, freq=None):
@@ -570,7 +576,7 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type="regre
             synth = corr.loc[col, ordered_cols[:i]].idxmax()
 
             if pd.isnull(synth):
-                logging.info("NaN proxy for {} found, backfill prices".format(col))
+                logging.info(f"NaN proxy for {col} found, backfill prices")
                 continue
 
             cr = corr.loc[col, synth]
@@ -592,15 +598,13 @@ def fill_synthetic_data(S, corr_threshold=0.95, backfill=False, beta_type="regre
                 X.loc[~nn, col] = b * X.loc[~nn, synth]
 
                 logging.info(
-                    "Filling missing values of {} by {:.2f}*{} (correlation {:.2f})".format(
-                        col, b, synth, cr
-                    )
+                    f"Filling missing values of {col} by {b:.2f}*{synth} (correlation {cr:.2f})"
                 )
             else:
                 if backfill:
-                    logging.info("No proxy for {} found, backfill prices.".format(col))
+                    logging.info(f"No proxy for {col} found, backfill prices.")
                 else:
-                    logging.info("No proxy for {} found.".format(col))
+                    logging.info(f"No proxy for {col} found.")
 
     # reconstruct prices by going from end
     X = X + 1

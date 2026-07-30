@@ -62,7 +62,7 @@ class CRP(Algo):
 
         # plot prices
         if dim == 2 and not show_3d:
-            fig, axes = plt.subplots(ncols=2, sharey=True)
+            _fig, axes = plt.subplots(ncols=2, sharey=True)
             data.plot(ax=axes[0], logy=True)
         else:
             data.plot(logy=False)
@@ -78,17 +78,17 @@ class CRP(Algo):
             s = pd.Series(y, index=x)
             s.plot(ax=axes[1], logy=True)
             plt.title("CRP performance")
-            plt.xlabel("weight of {}".format(data.columns[0]))
+            plt.xlabel(f"weight of {data.columns[0]}")
 
         elif dim > 2:
-            fig, axes = plt.subplots(ncols=dim - 1, nrows=dim - 1)
+            _fig, axes = plt.subplots(ncols=dim - 1, nrows=dim - 1)
             for i in range(dim - 1):
                 for j in range(i + 1, dim):
                     x, y = _crp(data[[i, j]])
                     ax = axes[i][j - 1]
                     ax.plot(x, y)
-                    ax.set_title("{} & {}".format(data.columns[i], data.columns[j]))
-                    ax.set_xlabel("weights of {}".format(data.columns[i]))
+                    ax.set_title(f"{data.columns[i]} & {data.columns[j]}")
+                    ax.set_xlabel(f"weights of {data.columns[i]}")
 
 
 if __name__ == "__main__":

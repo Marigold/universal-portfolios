@@ -22,19 +22,13 @@ from .up import UP
 from .wmamr import WMAMR
 
 __all__ = [
-    "Anticor",
     "BAH",
     "BCRP",
-    "BestMarkowitz",
-    "BestSoFar",
     "BNN",
     "CORN",
     "CRP",
     "CWMR",
-    "DynamicCRP",
     "EG",
-    # All names from estimators are included via import *
-    "Kelly",
     "MPT",
     "OLMAR",
     "ONS",
@@ -45,4 +39,10 @@ __all__ = [
     "TCO2",
     "UP",
     "WMAMR",
+    "Anticor",
+    "BestMarkowitz",
+    "BestSoFar",
+    "DynamicCRP",
+    # All names from estimators are included via import *
+    "Kelly",
 ]

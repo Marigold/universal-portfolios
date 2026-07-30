@@ -1,7 +1,7 @@
 import math
 
 import matplotlib
-import matplotlib.pyplot as pyplot
+from matplotlib import pyplot
 
 """Matplotlib Ternary plotting utility."""
 
@@ -133,7 +133,7 @@ def heatmap(d, steps, cmap_name=None):
     a = min(d.values())
     b = max(d.values())
     # Color data triangles.
-    for k, v in d.items():
+    for k in d:
         i, j = k
         vertices = triangle_coordinates(i, j)
         x, y = unzip(vertices)
@@ -160,7 +160,7 @@ def heatmap(d, steps, cmap_name=None):
 
 def plot_heatmap(func, steps=40, boundary=True, cmap_name=None):
     """Computes func on heatmap coordinates and plots heatmap."""
-    d = dict()
+    d = {}
     for x1, x2, x3 in simplex_points(steps=steps, boundary=boundary):
         d[(x1, x2)] = func(normalize([x1, x2, x3]))
     heatmap(d, steps, cmap_name=cmap_name)

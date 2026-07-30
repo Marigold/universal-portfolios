@@ -21,7 +21,7 @@ class UP(Algo):
         :param eval_points: Number of evaluated points (approximately). Complexity of the
             algorithm is O(eval_points * dim**2).
         """
-        super(UP, self).__init__()
+        super().__init__()
         self.eval_points = eval_points
 
     def init_weights(self, columns):

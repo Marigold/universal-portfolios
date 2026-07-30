@@ -71,7 +71,7 @@ EXPENSES = {
 }
 
 
-class CovarianceEstimator(object):
+class CovarianceEstimator:
     """Estimator which accepts sklearn objects.
 
     :param w: regularization from paper `Enhanced Portfolio Optimization`, value 0 means no regularization,
@@ -162,7 +162,7 @@ class CovarianceEstimator(object):
         return cov
 
 
-class SharpeEstimator(object):
+class SharpeEstimator:
     def __init__(
         self,
         global_sharpe=0.4,
@@ -210,7 +210,7 @@ class SharpeEstimator(object):
         if self.verbose:
             missing_expenses = set(sigma.index) - set(EXPENSES.keys())
             if missing_expenses:
-                logging.warning("Missing ETF expense for {}".format(missing_expenses))
+                logging.warning(f"Missing ETF expense for {missing_expenses}")
         expenses = pd.Series(
             [EXPENSES.get(c, 0.0) for c in sigma.index], index=sigma.index
         )
@@ -283,14 +283,14 @@ class SharpeEstimator(object):
         return new_mu
 
 
-class MuVarianceEstimator(object):
+class MuVarianceEstimator:
     def fit(self, X, sigma):
         # assume that all assets have yearly sharpe ratio 1 and deduce return from volatility
         mu = np.matrix(sigma).dot(np.ones(sigma.shape[0]))
         return mu
 
 
-class HistoricalEstimator(object):
+class HistoricalEstimator:
     def __init__(self, window):
         self.window = window
 
@@ -303,7 +303,7 @@ class HistoricalEstimator(object):
         return mu
 
 
-class MixedEstimator(object):
+class MixedEstimator:
     """Combines historical estimation with sharpe estimation from volatility.
     Has two parameters alpha and beta that works like this:
     alpha in (0, 1) controls regularization of covariance matrix
@@ -347,7 +347,7 @@ class MixedEstimator(object):
         return pd.Series(mu, index=X.columns)
 
 
-class PCAEstimator(object):
+class PCAEstimator:
     def __init__(self, window, n_components="mle"):
         self.window = window
         self.n_components = n_components
@@ -368,7 +368,7 @@ class PCAEstimator(object):
         return pca_mu
 
 
-class MLEstimator(object):
+class MLEstimator:
     """Predict mean using sklearn model."""
 
     def __init__(self, model, freq="M"):
@@ -502,7 +502,7 @@ class SingleIndexCovariance(BaseEstimator):
         return self
 
 
-class HistoricalSharpeEstimator(object):
+class HistoricalSharpeEstimator:
     def __init__(
         self,
         window=None,
@@ -624,7 +624,7 @@ class TaxAdjustment:
         return m
 
 
-class JPMEstimator(object):
+class JPMEstimator:
     def __init__(self, year=2021, currency="usd", rfr=0.0, verbose=False):
         self.rfr = rfr
         self.verbose = verbose
@@ -700,7 +700,7 @@ class JPMEstimator(object):
         return Y / Y.iloc[-1]
 
     def plot(self):
-        rets, corr = self._parse_jpm()
+        rets, _corr = self._parse_jpm()
         # add sharpe ratio to labels
         text = [a + f"<br>{rets.loc[a, 'Sharpe']:.2f}" for a in list(rets.index)]
         fig = go.Figure(

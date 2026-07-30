@@ -7,7 +7,7 @@ from scipy import stats
 from universal import tools
 
 
-class AssetFilter(object):
+class AssetFilter:
     def __init__(self, window=None, threshold=0.3):
         self.window = window
         self.threshold = threshold

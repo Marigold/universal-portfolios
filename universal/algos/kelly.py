@@ -112,11 +112,13 @@ class Kelly(Algo):
 
         return b
 
-    def plot_fraction(self, S, fractions=np.linspace(0.0, 2.0, 10), **kwargs):
+    def plot_fraction(self, S, fractions=None, **kwargs):
         """Plot graph with Kelly fraction on x-axis and total wealth on y-axis.
         :param S: Stock prices.
         :param fractions: List (ndarray) of fractions used.
         """
+        if fractions is None:
+            fractions = np.linspace(0.0, 2.0, 10)
         wealths = []
         for fraction in fractions:
             self.fraction = fraction
