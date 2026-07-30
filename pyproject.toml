@@ -16,7 +16,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "requests>=2.24.0",
     "plotly>=6.0.0",
-    "pandas>=1.1.1",
+    "pandas>=2.3.3,<3",
     "cvxopt>=1.3.3",
     "tqdm>=4.56.2",
     "urllib3>=1.26.6",
@@ -30,17 +30,26 @@ Repository = "https://github.com/Marigold/universal-portfolios"
 
 [tool.uv]
 exclude-newer = "3 days"
-dev-dependencies = [
-    "typing-extensions>=4.0.1",
+
+[dependency-groups]
+# Just what `make test` needs. CI installs only this, skipping the jupyter stack:
+# 57 packages instead of 147.
+ci = [
     "pytest>=6.2.5",
+    # Both pinned exactly: a new ruff changes the default rule set and the
+    # formatter, and a new ty always finds new errors. Either turns CI red with
+    # no code change, so upgrades happen deliberately.
+    "ruff==0.11.11",
+    "ty==0.0.33",
+]
+dev = [
+    {include-group = "ci"},
+    "typing-extensions>=4.0.1",
     "ipdb>=0.13.3",
     "line-profiler>=5.0.1",
     "ipykernel>=5.3.4",
     "jupyter>=1.0.0",
     "nbdime>=2.1.0",
-    "ruff>=0.1.1",
-    # NOTE: unpinning ty always introduces some new errors, so pin to a known good version
-    "ty==0.0.33",
 ]
 
 [build-system]
