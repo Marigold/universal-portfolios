@@ -1,0 +1,75 @@
+name: Publish to PyPI
+
+# Publishes when a push to master changes the version in pyproject.toml.
+# Uses PyPI trusted publishing (OIDC) — no API token in secrets. Requires a
+# trusted publisher configured on PyPI for this repo, this filename, and the
+# `pypi` environment.
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.version-check.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
+      # A push touching pyproject.toml isn't necessarily a release — only
+      # publish when the version line actually changed.
+      - name: Check if version was bumped
+        id: version-check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch, forcing publish"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          read_version() { grep '^version = ' | head -1 | sed 's/version = "\(.*\)"/\1/'; }
+          CURRENT_VERSION=$(read_version < pyproject.toml)
+          PREVIOUS_VERSION=$(git show HEAD~1:pyproject.toml 2>/dev/null | read_version || echo "")
+
+          echo "Current version:  $CURRENT_VERSION"
+          echo "Previous version: $PREVIOUS_VERSION"
+
+          if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
+            echo "Version unchanged, skipping publish"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version bumped, proceeding with publish"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # required for trusted publishing
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.0"
+
+      - name: Build
+        run: |
+          rm -rf dist
+          uv build
+
+      - uses: pypa/gh-action-pypi-publish@a892a5a61159132606e93a2fa6f4358831b04d26 # v1.14.2
