@@ -72,4 +72,7 @@ jobs:
           rm -rf dist
           uv build
 
-      - uses: pypa/gh-action-pypi-publish@a892a5a61159132606e93a2fa6f4358831b04d26 # v1.14.2
+      # Docker action: the ref must be the commit SHA, since GitHub pulls
+      # ghcr.io/pypa/gh-action-pypi-publish:<ref> and no image is published for
+      # the annotated tag's object SHA.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
