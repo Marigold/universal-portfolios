@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# A new push to a PR makes the in-flight run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with requires-python in pyproject.toml.
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+
+      # No --locked: exclude-newer = "3 days" in pyproject.toml expires the
+      # lockfile daily, so uv re-resolves on most runs by design.
+      - name: Install
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      # Formatting, linting, typechecking, unit tests. See default.mk.
+      - name: Run checks
+        run: make test PYTHON_VERSION=${{ matrix.python-version }}
