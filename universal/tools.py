@@ -53,7 +53,8 @@ def profile(algo, data=None, to_profile=[]):
     Example of use:
         tools.profile(Anticor(window=30, c_version=False), to_profile=[Anticor.weights])
     """
-    from line_profiler import LineProfiler
+    # dev-only dependency, absent from the lean CI env
+    from line_profiler import LineProfiler  # ty: ignore[unresolved-import]
 
     if data is None:
         data = random_portfolio(n=1000, k=10, mu=0.0)

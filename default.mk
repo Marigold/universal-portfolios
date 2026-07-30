@@ -4,6 +4,9 @@
 
 SRC = src test
 
+# Override to install a subset, e.g. CI uses "--no-default-groups --group ci".
+UV_SYNC_ARGS ?= --all-extras
+
 default: help
 
 help-default:
@@ -21,9 +24,9 @@ test-default: check-formatting check-linting check-typing unittest
 	@echo '==> Installing packages'
 	@if [ -n "$(PYTHON_VERSION)" ]; then \
 		echo '==> Using Python version $(PYTHON_VERSION)'; \
-		[ -f $$HOME/.cargo/env ] && . $$HOME/.cargo/env || true && UV_PYTHON=$(PYTHON_VERSION) uv sync --all-extras; \
+		[ -f $$HOME/.cargo/env ] && . $$HOME/.cargo/env || true && UV_PYTHON=$(PYTHON_VERSION) uv sync $(UV_SYNC_ARGS); \
 	else \
-		[ -f $$HOME/.cargo/env ] && . $$HOME/.cargo/env || true && uv sync --all-extras; \
+		[ -f $$HOME/.cargo/env ] && . $$HOME/.cargo/env || true && uv sync $(UV_SYNC_ARGS); \
 	fi
 
 check-default:

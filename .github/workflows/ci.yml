@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -20,21 +23,21 @@ jobs:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # v9.0.0 is the action's version; `version` below is uv's own. Pinned so a
       # uv release can't turn CI red on its own. setup-uv publishes no floating
       # v9 major tag, hence the exact action version too.
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.0"
           enable-cache: true
 
-      # No --locked: exclude-newer = "3 days" in pyproject.toml expires the
-      # lockfile daily, so uv re-resolves on most runs by design.
-      - name: Install
-        run: uv sync --all-extras --python ${{ matrix.python-version }}
-
-      # Formatting, linting, typechecking, unit tests. See default.mk.
+      # Installs via default.mk's .venv target, so there's no second sync here.
+      # The ci group skips the jupyter stack; no --locked because
+      # exclude-newer = "3 days" expires the lockfile daily by design.
       - name: Run checks
-        run: make test PYTHON_VERSION=${{ matrix.python-version }}
+        run: |
+          make test \
+            PYTHON_VERSION=${{ matrix.python-version }} \
+            UV_SYNC_ARGS="--no-default-groups --group ci"
