@@ -2986,7 +2986,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.3.3,<3" },
     { name = "pandas-datareader", specifier = ">=0.10.0" },
-    { name = "pillow", specifier = ">=11.2.1" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "plotly", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.24.0" },
     { name = "scikit-learn", specifier = ">=1.1.1" },
@@ -2994,13 +2994,13 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "statsmodels", specifier = ">=0.14.5" },
     { name = "tqdm", specifier = ">=4.56.2" },
-    { name = "urllib3", specifier = ">=1.26.6" },
+    { name = "urllib3", specifier = ">=2.7.0" },
     { name = "yfinance", specifier = ">=0.2.31" },
 ]
 
 [package.metadata.requires-dev]
 ci = [
-    { name = "pytest", specifier = ">=6.2.5" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "ruff", specifier = "==0.11.11" },
     { name = "ty", specifier = "==0.0.33" },
 ]
@@ -3010,7 +3010,7 @@ dev = [
     { name = "jupyter", specifier = ">=1.0.0" },
     { name = "line-profiler", specifier = ">=5.0.1" },
     { name = "nbdime", specifier = ">=2.1.0" },
-    { name = "pytest", specifier = ">=6.2.5" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "ruff", specifier = "==0.11.11" },
     { name = "ty", specifier = "==0.0.33" },
     { name = "typing-extensions", specifier = ">=4.0.1" },
