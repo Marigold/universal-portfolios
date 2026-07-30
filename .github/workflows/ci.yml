@@ -22,7 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v9
+      # Exact version: setup-uv publishes no floating v9 major tag.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
 
