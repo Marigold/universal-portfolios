@@ -52,7 +52,7 @@ class CORN(Algo):
         m = len(columns)
         return np.ones(m) / m
 
-    def init_step(self, X: pd.DataFrame) -> np.ndarray:
+    def init_step(self, X: pd.DataFrame) -> None:
         if self.fast_version:
             # redefine index to enumerate
             X.index = np.arange(len(X))
@@ -64,7 +64,7 @@ class CORN(Algo):
 
     def step_slow(
         self, x: pd.Series, last_b: pd.Series, history: pd.DataFrame
-    ) -> np.ndarray:
+    ) -> "np.ndarray | pd.Series":
         if len(history) <= self.window:
             return last_b
         else:
@@ -92,7 +92,7 @@ class CORN(Algo):
 
     def step_fast(
         self, x: pd.Series, last_b: pd.Series, history: pd.DataFrame
-    ) -> np.ndarray:
+    ) -> "np.ndarray | pd.Series":
         # iterate time
         self.t += 1
 

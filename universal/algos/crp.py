@@ -54,7 +54,7 @@ class CRP(Algo):
             return x, y
 
         # init
-        import ternary
+        import ternary  # ty: ignore[unresolved-import]
 
         data = data.dropna(how="any")
         data = data / data.iloc[0]

@@ -90,6 +90,7 @@ def simplex_points(steps=100, boundary=True):
 
 def colormapper(x, a=0, b=1, cmap=None):
     """Maps color values to [0,1] and obtains rgba from the given color map for triangle coloring."""
+    assert cmap is not None
     if b - a == 0:
         rgba = cmap(0)
     else:

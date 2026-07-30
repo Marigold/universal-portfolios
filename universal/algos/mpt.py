@@ -75,7 +75,7 @@ class MPT(Algo):
             elif cov_estimator == "ledoit-wolf":
                 cov_estimator = covariance.LedoitWolf()
             elif cov_estimator == "graph-lasso":
-                cov_estimator = covariance.GraphLasso()
+                cov_estimator = covariance.GraphicalLasso()
             elif cov_estimator == "oas":
                 cov_estimator = covariance.OAS()
             elif cov_estimator == "single-index":
@@ -138,7 +138,7 @@ class MPT(Algo):
                     self.covariance_ = sigma.values
                     return self
 
-            self.cov_estimator = CovarianceEstimator(
+            self.cov_estimator = CovarianceEstimator(  # ty: ignore[missing-argument]
                 EmpiricalCov(X, self.cov_estimator.window, self.min_history)
             )
 
@@ -148,7 +148,7 @@ class MPT(Algo):
         sigma = self.cov_estimator.fit(X - 1)
         mu = self.mu_estimator.fit(X, sigma)
         vol = np.sqrt(np.diag(sigma))
-        sh = (mu - self.mu_estimator.rfr) / vol
+        sh = (mu - self.mu_estimator.rfr) / vol  # ty: ignore[unresolved-attribute]
         sh[vol == 0] = 0.0
 
         return mu, sigma, sh
@@ -245,7 +245,7 @@ class MPT(Algo):
             # use gamma as a function
             pass
         else:
-            gamma = gamma.reindex(x.index)
+            gamma = gamma.reindex(x.index)  # ty: ignore[unresolved-attribute]
             gamma_null = gamma[gamma.isnull()]
             assert len(gamma_null) == 0, "gamma is missing values for {}".format(
                 gamma_null.index
@@ -293,17 +293,16 @@ class MPT(Algo):
             bb = np.matrix(bb)
             return -mu * bb.T / np.sqrt(bb * sigma * bb.T + q) + fee_penalization
 
-        if self.allow_cash:
+        if self.allow_cash:  # ty: ignore[unresolved-attribute]
             cons = ({"type": "ineq", "fun": lambda b: max_leverage - sum(b)},)
         else:
             cons = ({"type": "eq", "fun": lambda b: max_leverage - sum(b)},)
 
         bounds = [(0.0, max_leverage)] * len(last_b)
 
-        if self.max_weight:
-            bounds = [
-                (max(l, -self.max_weight), min(u, self.max_weight)) for l, u in bounds
-            ]
+        max_weight = self.max_weight  # ty: ignore[unresolved-attribute]
+        if max_weight:
+            bounds = [(max(l, -max_weight), min(u, max_weight)) for l, u in bounds]
 
         x0 = last_b
         MAX_TRIES = 3
@@ -385,7 +384,7 @@ class MPT(Algo):
 
         # second optimization for fees
         if (gamma != 0).any() and (b != last_b).any():
-            b = maximize_with_penalization(b, last_b, mu, sigma, q, gamma)
+            b = _maximize_with_penalization(b, last_b, mu, sigma, q, gamma)
         return b
 
     def _optimize_variance(self, mu, sigma, q, gamma, max_leverage, last_b):
@@ -406,7 +405,7 @@ class MPT(Algo):
                 if max_leverage is None or max_leverage == float("inf"):
                     sol = solvers.qp(P, qq, G, h)
                 else:
-                    if self.allow_cash:
+                    if self.allow_cash:  # ty: ignore[unresolved-attribute]
                         G = matrix(np.r_[G, matrix(np.ones(n)).T])
                         h = matrix(np.r_[h, matrix([self.max_leverage])])
                         sol = solvers.qp(P, qq, G, h, initvals=last_b)

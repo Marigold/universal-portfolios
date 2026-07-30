@@ -92,12 +92,14 @@ class CovarianceEstimator(object):
         # assert X.mean().mean() < 1.
 
         # reuse covariance matrix
+        last_cov = self._last_cov
         if (
             self.frequency > 1
             and len(X) - self._last_n < self.frequency
-            and list(X.columns) == list(self._last_cov.columns)
+            and last_cov is not None
+            and list(X.columns) == list(last_cov.columns)
         ):
-            return self._last_cov
+            return last_cov
 
         # only use last window
         if self.window:
@@ -314,7 +316,9 @@ class MixedEstimator(object):
     """
 
     def __init__(self, window=None, alpha=0.0, beta=0.0):
-        self.GLOBAL_SHARPE = SharpeEstimator.GLOBAL_SHARPE
+        self.GLOBAL_SHARPE = (
+            SharpeEstimator.GLOBAL_SHARPE  # ty: ignore[unresolved-attribute]
+        )
         self.historical_estimator = HistoricalEstimator(window=window)
         self.alpha = alpha
         self.beta = beta
@@ -375,8 +379,8 @@ class MLEstimator(object):
         X = pd.DataFrame(
             {
                 "last_sh": H.shift(1).stack(),
-                "history_sh": pd.expanding_mean(H).shift(1).stack(),
-                "history_sh_vol": pd.expanding_std(H).shift(1).stack(),
+                "history_sh": H.expanding().mean().shift(1).stack(),
+                "history_sh_vol": H.expanding().std().shift(1).stack(),
                 "nr_days": H.notnull().cumsum().stack(),
             }
         )

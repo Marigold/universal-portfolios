@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 import scipy.optimize as optimize
 from cvxopt import matrix, solvers
-from pandas_datareader.data import DataReader
 from scipy.special import betaln
 from statsmodels import api as sm
 from statsmodels.api import OLS
@@ -66,6 +65,8 @@ def profile(algo, data=None, to_profile=[]):
 
 
 def load_ticker(ticker, start=datetime(2000, 1, 1), end=None):
+    from pandas_datareader.data import DataReader
+
     return DataReader(ticker, "yahoo", start=start, end=None)
 
 
@@ -627,7 +628,7 @@ def fill_regressed_data(S):
         y = R[col]
 
         # fit regression
-        res = sm.OLS(y=y, x=X, intercept=True).fit()
+        res = sm.OLS(y=y, x=X, intercept=True).fit()  # ty: ignore[missing-argument]
         pred = res.predict(x=X[y.isnull()])
 
         # get absolute prices
