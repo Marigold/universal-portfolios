@@ -45,7 +45,7 @@ Each period, starting from $`b^{(1)} = g^{(1)} = \hat b_t`$ (the weights current
 ```math
 \begin{aligned}
 b^{(o+1)} &= \left(\frac{\lambda}{\gamma} I + \eta \mathbf 1 \mathbf 1^\top\right)^{-1} \left(\frac{\lambda}{\gamma} g^{(o)} + (\eta - \rho^{(o)}) \mathbf 1 - \varphi_t\right) && \text{(eq. 29)} \\
-g^{(o+1)} &= \operatorname{sign}(b^{(o+1)}) \otimes \left(\operatorname{abs}(b^{(o+1)}) - \gamma \mathbf 1\right)_+ && \text{(eq. 32)} \\
+g^{(o+1)} &= \mathrm{sign}(b^{(o+1)}) \otimes \left(\mathrm{abs}(b^{(o+1)}) - \gamma \mathbf 1\right)_+ && \text{(eq. 32)} \\
 \rho^{(o+1)} &= \rho^{(o)} + \eta (\mathbf 1^\top b^{(o+1)} - 1) && \text{(eq. 27)}
 \end{aligned}
 ```
@@ -53,7 +53,7 @@ g^{(o+1)} &= \operatorname{sign}(b^{(o+1)}) \otimes \left(\operatorname{abs}(b^{
 until $`|\mathbf 1^\top b^{(o)} - 1| < \epsilon`$ or $`10^4`$ iterations, then normalize (eq. 33):
 
 ```math
-\hat b_{t+1} = \operatorname*{argmin}_{b \in \Delta_d} \lVert b - \zeta b^{(o)} \rVert^2 .
+\hat b_{t+1} = \arg\min_{b \in \Delta_d} \lVert b - \zeta b^{(o)} \rVert^2 .
 ```
 
 The b-step is a ridge-like solve. With $`\tau = \lambda / \gamma`$, the Sherman–Morrison formula gives
