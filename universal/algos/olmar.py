@@ -29,7 +29,7 @@ class OLMAR(Algo):
 
         # input check
         if window < 2:
-            raise ValueError("window parameter must be >=3")
+            raise ValueError("window parameter must be >=2")
         if eps < 1:
             raise ValueError("epsilon parameter must be >=1")
         if ma_type not in ["SMA", "EMA"]:
