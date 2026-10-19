@@ -90,7 +90,7 @@ The sparsity of eq. (34), the share of non-maximal entries of $`b^{(o)}`$ that a
 
 The paper doesn't say what happens before a full window exists. The authors' `SSPO_run.m` scores assets by the last price relative, $`R_t = 1.1 \log x_t + 1`$, while it has at most $`w`$ closing prices, and switches to the peak rule once it has $`w + 1`$. During those first days SSPO follows recent winners, not recent losers. The code does the same, counting the prices in `history`.
 
-The bundled CSVs are cumulative products of the price relatives, so their first row is the price after day 1, not a base price. `Algo.run` treats the first row as the base, so it never sees the first price relative and holds uniform weights for one more day. Fed the relatives the library sees ($`x_1`$ replaced by 1), the authors' code gives the same weights as `SSPO().run(S)` to within $`10^{-11}`$ on all five datasets. Fed the original relatives, it reproduces Table 3 to every printed digit. The only difference is therefore that missing first day, and because SSPO holds a single asset and warm-starts ADMM from the previous weights, that one day moves the final wealth by −5.6% to +1.8%:
+The bundled CSVs are cumulative products of the price relatives, so their first row is the price after day 1, not a base price. `Algo.run` treats the first row as the base, so it never sees the first price relative. Fed the relatives the library sees ($`x_1`$ replaced by 1), the authors' code gives the same weights as `SSPO().run(S)` to within $`10^{-11}`$ on all five datasets. Fed the original relatives, it reproduces Table 3 to every printed digit. So the only difference is that missing first day: `run(S)` misses the day-1 return and holds uniform weights on day 2, where the authors' code already holds about one asset. From day 3 on the weights agree again (to $`10^{-11}`$ on DJIA, SP500 and TSE). Because the day-2 portfolio is a single stock, those two days alone move the final wealth by −5.6% to +1.8%:
 
 | dataset | Table 3 | authors' code | `SSPO().run(S)` |
 |---|---|---|---|
@@ -119,14 +119,14 @@ Prepending a row of ones to the CSV restores the first day but gives the code on
 
 ## Departures from the authors' code
 
-- `simplex_projection_selfnorm2.m` divides the vector by 10 while its largest entry exceeds $`10^6`$ before projecting. The projection isn't scale invariant, so this would change the weights when it triggers. It is a numerical guard from the projection routine the authors borrowed, not part of the paper, and it never triggers on the bundled data: the largest $`|\zeta b^{(o)}|`$ is about 2,500 on TSE and 1,300 on DJIA. The code leaves it out.
+- `simplex_projection_selfnorm2.m` divides the vector by 10 while its largest entry exceeds $`10^6`$ before projecting. The projection isn't scale invariant, so this would change the weights when it triggers. It is a numerical guard from the projection routine the authors borrowed, not part of the paper, and it never triggers on the bundled data: the largest $`|\zeta b^{(o)}|`$ is about 14,600, on NYSE(N). The code leaves it out.
 - The b-step uses Sherman–Morrison instead of the matrix solve. It agrees with the dense solve of eq. (29) to rounding.
 
 ## Limitations
 
 - **Concentration.** About one asset at a time, so single-stock risk.
 - **Turnover.** About half the wealth changes hands each period. Set `result.fee` before trusting a comparison: the library's `fee` is charged per unit traded, so the paper's round-trip rate $`\nu`$ of eq. (40) is `fee = nu / 2`.
-- **Sensitivity.** One different early day changes the final wealth by several percent (see [First days](#first-days)), so differences between SSPO and other strategies at the third significant digit mean little.
+- **Sensitivity.** Holding one stock, a single day's return can move the final wealth by several percent (see [First days](#first-days)), so differences between SSPO and other strategies at the third significant digit mean little.
 - **The stopping rule checks only the constraint.** ADMM can stop as soon as $`\mathbf 1^\top b`$ is close to 1, before $`b`$ has moved to the minimizer of (12). Together with the warm start this makes SSPO keep the asset it already holds in some periods where another asset has a higher $`R_t`$: 33 of 505 periods on DJIA, 35 of 1,257 on TSE, 54 of 1,274 on SP500. This is the paper's algorithm, not a bug.
 - **Few assets.** ADMM converges slowly when $`d`$ is small. On random data it averages about 4,000 iterations per period with two assets and 3,200 with three, and some periods hit the $`10^4`$ cap, against about 700 to 1,200 on the bundled datasets. With a single asset most periods hit the cap, although the weight is always 1. Periods where all assets have the same $`R_t`$, e.g. when all prices are constant, can also run to the cap.
 - **Late-listed assets.** With `REPLACE_MISSING`, an asset's price is constant before it is listed, so its $`R_t = 1`$ is the lowest possible and it isn't held under the peak rule unless every asset is at its peak.
