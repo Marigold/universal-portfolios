@@ -94,3 +94,12 @@ def test_tco1(S):
     """Zero turnover with extremely high fees."""
     result = algos.TCO1(eta=1, trx_fee_pct=1e6).run(S)
     assert abs(result.turnover) < 1e-8
+
+
+# SoftBayes
+@pytest.mark.parametrize("eta, benchmark", [(1.0, algos.BAH), (0.0, algos.CRP)])
+def test_soft_bayes_limits(eta, benchmark, S):
+    """eta=1 lets weights drift like BAH, eta=0 keeps them uniform like CRP."""
+    result = algos.SoftBayes(eta=eta).run(S)
+
+    assert abs(result.total_wealth - benchmark().run(S).total_wealth) < EPS

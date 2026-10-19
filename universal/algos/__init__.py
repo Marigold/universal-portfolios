@@ -18,6 +18,7 @@ from .ons import ONS
 from .pamr import PAMR
 from .rmr import RMR
 from .rprt import RPRT
+from .soft_bayes import SoftBayes
 from .tco import TCO1, TCO2
 from .up import UP
 from .wmamr import WMAMR
@@ -45,6 +46,7 @@ __all__ = [
     "BestMarkowitz",
     "BestSoFar",
     "DynamicCRP",
+    "SoftBayes",
     # All names from estimators are included via import *
     "Kelly",
 ]
