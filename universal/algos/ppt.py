@@ -6,15 +6,26 @@ from ..algo import Algo
 
 class PPT(Algo):
     """Peak Price Tracking. Predicts that each asset's next price is its highest price
-    over the last `window` periods and takes a fixed-length step from the last
-    portfolio along the centered predicted price relatives, so weight moves towards
-    assets that trade furthest below their recent peak.
+    over the last `window` periods and takes a fixed-length step `eps` from the last
+    portfolio along the centered predicted price relatives, then projects onto the
+    simplex. Weight moves to the assets trading furthest below their recent peak.
+
+    With the default eps = 100 the step dwarfs the simplex, so PPT holds a single
+    asset on about 95% of days, the one furthest below its window peak, and switches
+    it on more than half of the days. Like OLMAR and RPRT, without fees it beats
+    uniform CRP on every bundled dataset we tried (4x on DJIA, 1e16x on NYSE), but
+    the edge is gone at fees between 0.14% (SP500) and 0.6% (NYSE) per unit traded.
+
+    The update is implemented from the authors' reference MATLAB code; the paper's
+    text was not checked. The math, how it maps to this code and benchmarks are in
+    ppt.md next to this file.
 
     Reference:
         Zhao-Rong Lai, Dao-Qing Dai, Chuan-Xian Ren and Ke-Kun Huang.
-        A Peak Price Tracking-Based Learning System for Portfolio Selection, 2018.
+        A Peak Price Tracking-Based Learning System for Portfolio Selection.
+        IEEE Transactions on Neural Networks and Learning Systems 29(7), 2018.
         https://ieeexplore.ieee.org/document/7942104
-        Author's code: https://github.com/laizhr/PPT
+        Authors' code: https://github.com/laizhr/PPT
     """
 
     PRICE_TYPE = "raw"
@@ -43,8 +54,8 @@ class PPT(Algo):
         return np.ones(m) / m
 
     def step(self, x, last_b, history):
-        # calculate return prediction; until a full window is available, use the
-        # last price relative as the authors' code does
+        # predict next price relatives; for the first `window - 1` steps use the last
+        # price relative, as the authors' code does
         if len(history) <= self.window:
             x_pred = history.iloc[-1] / history.iloc[-2]
         else:
