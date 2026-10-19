@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from universal import algos, tools
+from universal.result import ListResult
 
 
 def _prices(log_returns):
@@ -43,3 +44,14 @@ def test_hedges_against_flipping_leader():
 def test_single_asset():
     S = tools.random_portfolio(n=100, k=1)
     assert (algos.AdaHedge().run(S).B == 1).all().all()
+
+
+def test_mixing_strategies(S):
+    """Mixing single-asset CRPs is the same as running AdaHedge on the assets."""
+    k = S.shape[1]
+    experts = [algos.CRP(np.eye(k)[i]).run(S) for i in range(k)]
+    mixed = algos.AdaHedge().run(ListResult(experts, list(S.columns)))
+    direct = algos.AdaHedge().run(S)
+
+    assert np.allclose(mixed.B, direct.B)
+    assert np.isclose(mixed.total_wealth, direct.total_wealth)

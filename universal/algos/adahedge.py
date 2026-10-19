@@ -14,6 +14,17 @@ class AdaHedge(Algo):
     by following the leader and lowers eta as the cumulative mixability gap grows,
     i.e. as following the leader turns out to be costly. It has no parameters.
 
+    Its guarantee is to stay close to the best single expert, so on raw assets it
+    competes with the best stock rather than with rebalancing strategies such as CRP.
+    It is most useful for mixing strategies, when you don't know in advance which one
+    will work best:
+
+        from universal.result import ListResult
+
+        experts = [algos.CRP(), algos.OLMAR(), algos.PAMR(), algos.ONS()]
+        results = ListResult([a.run(S) for a in experts], ["CRP", "OLMAR", "PAMR", "ONS"])
+        mixed = algos.AdaHedge().run(results)
+
     Reference:
         S. de Rooij, T. van Erven, P. D. Grünwald, W. M. Koolen.
         "Follow the Leader If You Can, Hedge If You Must."
