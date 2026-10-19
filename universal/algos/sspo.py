@@ -9,11 +9,22 @@ class SSPO(Algo):
     furthest below their recent peak price by solving an l1-regularized linear program
     with ADMM, then projects the scaled solution onto the simplex.
 
+    It is an aggressive daily strategy that bets on a quick rebound to the recent peak.
+    With the default parameters it holds about one asset at a time and moves about half
+    of its wealth every period, so it is not a diversifier. Without fees, on the bundled
+    nyse_o, djia, tse and sp500 datasets it beats uniform CRP by far and OLMAR on all
+    four, and RPRT (same authors) only on djia. It trades less than OLMAR and RPRT, so
+    it keeps more of its wealth under proportional transaction costs, but a 0.5%
+    round-trip cost still takes most of it.
+
+    The math, how it maps to this code and the departures from the authors' code are
+    in sspo.md next to this file.
+
     Reference:
         Zhao-Rong Lai, Pei-Yi Yang, Liangda Fang and Xiaotian Wu.
         Short-term Sparse Portfolio Optimization Based on Alternating Direction
-        Method of Multipliers, 2018.
-        http://jmlr.org/papers/v19/17-558.html
+        Method of Multipliers. Journal of Machine Learning Research 19(63):1-28, 2018.
+        https://jmlr.org/papers/v19/17-558.html
     """
 
     PRICE_TYPE = "raw"
@@ -63,8 +74,8 @@ class SSPO(Algo):
 
     def step(self, x, last_b, history):
         # increasing potential: distance of the current price to its recent peak
-        # (eq. 11); with fewer than window + 1 prices use the last price relative,
-        # as in the authors' code
+        # (eqs. 10-11); with fewer than window + 1 prices use the last price relative,
+        # as in the authors' code (see "First days" in sspo.md)
         if len(history) < self.window + 1:
             x_pred = history.iloc[-1] / history.iloc[-2]
         else:
@@ -77,8 +88,10 @@ class SSPO(Algo):
         return tools.simplex_proj(self.zeta * b)
 
     def update(self, b, phi):
-        """Solve min_b b'phi + lam * ||b||_1 s.t. sum(b) = 1 by ADMM (Algorithm 1),
-        warm-started from the last weights."""
+        """Solve min_b b'phi + lam * ||b||_1 s.t. sum(b) = 1 by ADMM (Algorithm 1,
+        steps 3-7), warm-started from the last weights. Return b before the projection.
+        As in the paper, it stops as soon as |sum(b) - 1| < tol, which checks only the
+        constraint, not optimality."""
         d = len(b)
         tau = self.lam / self.gamma
         eta = self.eta
