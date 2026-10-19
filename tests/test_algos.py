@@ -51,3 +51,14 @@ def test_tco1(S):
     """Zero turnover with extremely high fees."""
     result = algos.TCO1(eta=1, trx_fee_pct=1e6).run(S)
     assert abs(result.turnover) < 1e-8
+
+
+# OLMAR
+@pytest.mark.parametrize("ma_type", ["SMA", "EMA"])
+def test_olmar_min_window(S, ma_type):
+    """Window of 2 is the smallest that runs; 1 is rejected with a matching message."""
+    result = algos.OLMAR(window=2, ma_type=ma_type).run(S)
+    assert result.B.notnull().all().all()
+
+    with pytest.raises(ValueError, match=">=2"):
+        algos.OLMAR(window=1, ma_type=ma_type)
