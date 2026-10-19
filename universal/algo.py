@@ -84,9 +84,6 @@ class Algo:
         # init step
         self.init_step(X)
 
-        # get min_history, can be set by init_step
-        min_history = self.min_history
-
         # return accumulated since the last step, for frequency > 1
         x_acc = None
 
@@ -99,13 +96,13 @@ class Algo:
             B.iloc[t] = last_b
 
             # keep initial weights for min_history
-            if t < min_history:
+            if t < self.min_history:
                 continue
 
             x_acc = x if x_acc is None else self._accumulate(x_acc, x)
 
             # trade each `frequency` periods
-            if (t - min_history) % self.frequency != 0:
+            if (t - self.min_history) % self.frequency != 0:
                 continue
 
             # predict for t+1
@@ -127,20 +124,18 @@ class Algo:
     def _accumulate(self, x_acc, x):
         """Combine the return accumulated so far with the next period's return."""
         if self.PRICE_TYPE == "ratio":
-            x_acc = x_acc * x
-        elif self.PRICE_TYPE == "log":
-            x_acc = x_acc + x
-        else:
-            # raw and absolute prices are levels, not returns
-            x_acc = x
-        return x_acc.rename(x.name)
+            return (x_acc * x).rename(x.name)
+        if self.PRICE_TYPE == "log":
+            return (x_acc + x).rename(x.name)
+        # raw and absolute prices are levels, not returns
+        return x
 
     def run(self, S, n_jobs=1, log_progress=True) -> AlgoResult:
         """Run algorithm and get weights.
         :params S: Absolute stock prices. DataFrame with stocks in columns.
         :param show_progress: Log computation progress. Works only for algos with
             defined step method.
-        :param n_jobs: Deprecated, only 1 is supported.
+        :param n_jobs: Removed, only 1 is accepted.
         """
         if n_jobs != 1:
             # it restarted the state and weights of every chunk, giving wrong weights
