@@ -31,7 +31,8 @@ class CRP(Algo):
     def weights(self, X):
         if self.b is None:
             b = X * 0 + 1
-            b.loc[:, "CASH"] = 0
+            if "CASH" in b.columns:
+                b["CASH"] = 0
             b = b.div(b.sum(axis=1), axis=0)
             return b
         elif self.b.ndim == 1:
