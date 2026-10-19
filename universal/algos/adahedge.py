@@ -25,6 +25,9 @@ class AdaHedge(Algo):
         results = ListResult([a.run(S) for a in experts], ["CRP", "OLMAR", "PAMR", "ONS"])
         mixed = algos.AdaHedge().run(results)
 
+    The math, its guarantees and how it maps to this code are in adahedge.md next to
+    this file.
+
     Reference:
         S. de Rooij, T. van Erven, P. D. Grünwald, W. M. Koolen.
         "Follow the Leader If You Can, Hedge If You Must."
