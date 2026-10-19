@@ -24,6 +24,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       # v9.0.0 is the action's version; `version` below is uv's own. Pinned so a
       # uv release can't turn CI red on its own. setup-uv publishes no floating
