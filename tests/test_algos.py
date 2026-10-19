@@ -10,6 +10,9 @@ ALL_ALGOS = [getattr(algos, name) for name in algos.__all__]
 # Optimal in hindsight by definition, so their weights depend on future prices.
 HINDSIGHT = {algos.BCRP, algos.BestMarkowitz}
 
+# Compute all weights at once in weights() and have no step().
+NO_STEP = {algos.BAH, algos.Anticor}
+
 # Long-short and leveraged by design.
 LEVERAGED = {algos.Kelly}
 
@@ -32,6 +35,21 @@ def test_bias(algo_class, S):
     B2 = _run(algo_class, S)
 
     assert np.allclose(B1, B2.iloc[:-m])
+
+
+@pytest.mark.parametrize(
+    "algo_class",
+    [a for a in ALL_ALGOS if a not in HINDSIGHT | NO_STEP],
+    ids=lambda a: a.__name__,
+)
+def test_next_weights_matches_run(algo_class, S):
+    """next_weights on prices up to the second-to-last period gives the weights run
+    holds in the last period, also for algorithms that keep state between steps."""
+    B = _run(algo_class, S)
+    np.random.seed(0)
+    b = algo_class().next_weights(S.iloc[:-1], B.iloc[-2])
+
+    assert np.allclose(b, B.iloc[-1])
 
 
 @pytest.mark.parametrize(

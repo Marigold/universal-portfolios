@@ -34,7 +34,8 @@ class Algo:
         """Subclass to define algo specific parameters here.
         :param min_history: If not None, use initial weights for first min_window days. Use
             this if the algo needs some history for proper parameter estimation.
-        :param frequency: algorithm should trade every `frequency` periods
+        :param frequency: algorithm should trade every `frequency` periods. `step` still
+            sees every period: its `x` is the return accumulated since its previous call.
         """
         self.min_history = min_history or 0
         self.frequency = frequency
@@ -61,9 +62,19 @@ class Algo:
         """
         raise NotImplementedError("Subclass must implement this!")
 
-    def weights(self, X, min_history=None, log_progress=True):
+    def weights(self, X, log_progress=True):
         """Return weights. Call step method to update portfolio sequentially. Subclass
         this method only at your own risk."""
+        B, _ = self._step_through(X, log_progress=log_progress)
+        return B
+
+    def _step_through(self, X, held_b=None, log_progress=True, **kwargs):
+        """Call step over X. Return the weights held in each period of X and the weights
+        for the period after X.
+        :param held_b: Weights actually held in the last period of X, used for its step
+            instead of the replayed ones.
+        :param kwargs: Passed to the last step.
+        """
         # init
         B = X.copy() * 0.0
         last_b = self.init_weights(X.columns)
@@ -73,24 +84,31 @@ class Algo:
         # init step
         self.init_step(X)
 
-        # get min_history, can be set by init_step
-        min_history = self.min_history if min_history is None else min_history
+        # return accumulated since the last step, for frequency > 1
+        x_acc = None
 
         for t, (_, x) in enumerate(X.iterrows()):
+            last = t == len(X) - 1
+            if last and held_b is not None:
+                last_b = held_b
+
             # save weights
             B.iloc[t] = last_b
 
             # keep initial weights for min_history
-            if t < min_history:
+            if t < self.min_history:
                 continue
 
+            x_acc = x if x_acc is None else self._accumulate(x_acc, x)
+
             # trade each `frequency` periods
-            if (t - min_history) % self.frequency != 0:
+            if (t - self.min_history) % self.frequency != 0:
                 continue
 
             # predict for t+1
             history = X.iloc[: t + 1]
-            last_b = self.step(x, last_b, history)
+            last_b = self.step(x_acc, last_b, history, **(kwargs if last else {}))
+            x_acc = None
 
             # convert last_b to suitable format if needed
             if isinstance(last_b, np.matrix):
@@ -101,24 +119,29 @@ class Algo:
             if log_progress:
                 tools.log_progress(t, len(X), by=10)
 
-        return B
+        return B, last_b
 
-    def _split_index(self, ix, nr_chunks, freq):
-        """Split index into chunks so that each chunk except of the last has length
-        divisible by freq."""
-        chunksize = int(len(ix) / freq / nr_chunks + 1) * freq
-        return [
-            ix[i * chunksize : (i + 1) * chunksize]
-            for i in range(int(len(ix) / chunksize + 1))
-        ]
+    def _accumulate(self, x_acc, x):
+        """Combine the return accumulated so far with the next period's return."""
+        if self.PRICE_TYPE == "ratio":
+            return (x_acc * x).rename(x.name)
+        if self.PRICE_TYPE == "log":
+            return (x_acc + x).rename(x.name)
+        # raw and absolute prices are levels, not returns
+        return x
 
     def run(self, S, n_jobs=1, log_progress=True) -> AlgoResult:
         """Run algorithm and get weights.
         :params S: Absolute stock prices. DataFrame with stocks in columns.
         :param show_progress: Log computation progress. Works only for algos with
             defined step method.
-        :param n_jobs: run step method in parallel (step method can't depend on last weights)
+        :param n_jobs: Removed, only 1 is accepted.
         """
+        if n_jobs != 1:
+            # it restarted the state and weights of every chunk, giving wrong weights
+            # for most algorithms (see issue #149)
+            raise ValueError("Running steps in parallel was removed, use n_jobs=1")
+
         if log_progress:
             logging.debug(f"Running {self.__class__.__name__}...")
 
@@ -131,31 +154,10 @@ class Algo:
         X = self._convert_prices(P, self.PRICE_TYPE, self.REPLACE_MISSING)
 
         # get weights
-        if n_jobs == 1:
-            try:
-                B = self.weights(X, log_progress=log_progress)
-            except TypeError:  # weights are missing log_progress parameter
-                B = self.weights(X)
-        else:
-            with tools.mp_pool(n_jobs) as pool:
-                ix_blocks = self._split_index(
-                    X.index, getattr(pool, "_processes", 1) * 2, self.frequency
-                )
-                min_histories = np.maximum(
-                    np.cumsum([0] + list(map(len, ix_blocks[:-1]))) - 1,
-                    self.min_history,
-                )
-
-                B_blocks = pool.map(
-                    _parallel_weights,
-                    [
-                        (self, X.loc[: ix_block[-1]], min_history, log_progress)
-                        for ix_block, min_history in zip(ix_blocks, min_histories)
-                    ],
-                )
-
-            # join weights to one dataframe
-            B = pd.concat([B_blocks[i].loc[ix] for i, ix in enumerate(ix_blocks)])
+        try:
+            B = self.weights(X, log_progress=log_progress)
+        except TypeError:  # weights are missing log_progress parameter
+            B = self.weights(X)
 
         # cast to dataframe if weights return numpy array
         if not isinstance(B, pd.DataFrame):
@@ -173,12 +175,13 @@ class Algo:
             return AlgoResult(self._convert_prices(S, "ratio"), B)
 
     def next_weights(self, S, last_b, **kwargs):
-        """Calculate weights for next day."""
-        history = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
-        x = history.iloc[-1]
-
-        b = self.step(x, last_b, history, **kwargs)
-
+        """Calculate weights for next day. Replays the whole history through step, as
+        algorithms that keep state between steps need it, so it takes as long as run.
+        :param last_b: Weights held in the last period of S.
+        :param kwargs: Passed to the last step.
+        """
+        X = self._convert_prices(S, self.PRICE_TYPE, self.REPLACE_MISSING)
+        _, b = self._step_through(X, held_b=last_b, log_progress=False, **kwargs)
         return pd.Series(b, index=S.columns)
 
     def run_subsets(self, S, r, generator=False):
@@ -308,14 +311,6 @@ class Algo:
 
     def copy(self):
         return copy.deepcopy(self)
-
-
-def _parallel_weights(tuple_args):
-    self, X, min_history, log_progress = tuple_args
-    try:
-        return self.weights(X, min_history=min_history, log_progress=log_progress)
-    except TypeError:  # weights are missing log_progress parameter
-        return self.weights(X, min_history=min_history)
 
 
 def _run_algo_params(tuple_args):
