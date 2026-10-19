@@ -90,6 +90,29 @@ def test_crp(S):
     assert abs(result.total_wealth - S[S.columns[0]].iloc[-1]) < EPS
 
 
+def test_sspo_admm_matches_matrix_form():
+    """The Sherman-Morrison b-step gives the same ADMM solution as solving eq. (29) of
+    the paper with the full matrix."""
+    algo = algos.SSPO()
+    rng = np.random.default_rng(0)
+    d = 7
+    phi = -(1.1 * np.log(1 + rng.uniform(0, 0.1, d)) + 1)
+    b0 = np.ones(d) / d
+
+    tau = algo.lam / algo.gamma
+    A = tau * np.eye(d) + algo.eta * np.ones((d, d))
+    b = g = b0
+    rho = 0.0
+    for _ in range(algo.max_iter):
+        b = np.linalg.solve(A, tau * g + (algo.eta - rho) - phi)
+        g = np.sign(b) * np.maximum(np.abs(b) - algo.gamma, 0)
+        rho += algo.eta * (b.sum() - 1)
+        if abs(b.sum() - 1) < algo.tol:
+            break
+
+    assert np.allclose(algo.update(b0, phi), b)
+
+
 def test_tco1(S):
     """Zero turnover with extremely high fees."""
     result = algos.TCO1(eta=1, trx_fee_pct=1e6).run(S)

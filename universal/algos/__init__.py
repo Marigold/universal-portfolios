@@ -18,6 +18,7 @@ from .ons import ONS
 from .pamr import PAMR
 from .rmr import RMR
 from .rprt import RPRT
+from .sspo import SSPO
 from .tco import TCO1, TCO2
 from .up import UP
 from .wmamr import WMAMR
@@ -36,6 +37,7 @@ __all__ = [
     "PAMR",
     "RMR",
     "RPRT",
+    "SSPO",
     "TCO1",
     "TCO2",
     "UP",
