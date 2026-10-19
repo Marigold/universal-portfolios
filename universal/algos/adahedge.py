@@ -35,7 +35,11 @@ class AdaHedge(Algo):
         self.Delta = 0.0
 
     def _eta(self):
-        return np.log(len(self.L)) / self.Delta if self.Delta > 0 else np.inf
+        # a single asset has nothing to hedge; rounding could still make Delta > 0,
+        # which would give eta = ln(1) / Delta = 0 and a 0 / 0 mix loss
+        if self.Delta == 0 or len(self.L) == 1:
+            return np.inf
+        return np.log(len(self.L)) / self.Delta
 
     def _mix(self, eta, L):
         """Return weights and mix loss M for cumulative losses L."""
