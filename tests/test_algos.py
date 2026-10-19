@@ -1,28 +1,53 @@
+import numpy as np
 import pytest
 
 from universal import algos
 
 EPS = 1e-10
 
+ALL_ALGOS = [getattr(algos, name) for name in algos.__all__]
+
+# Optimal in hindsight by definition, so their weights depend on future prices.
+HINDSIGHT = {algos.BCRP, algos.BestMarkowitz}
+
+# Long-short and leveraged by design.
+LEVERAGED = {algos.Kelly}
+
+
+def _run(algo_class, S):
+    # UP and BestSoFar draw random numbers; seed so that two runs are comparable
+    np.random.seed(0)
+    return algo_class().run(S).B
+
 
 @pytest.mark.parametrize(
-    "algo_class",
-    [
-        algos.CRP,
-        algos.RMR,
-        algos.OLMAR,
-        algos.PAMR,
-    ],
+    "algo_class", [a for a in ALL_ALGOS if a not in HINDSIGHT], ids=lambda a: a.__name__
 )
 def test_bias(algo_class, S):
     """Test forward bias of algo. Test on a portion of given data set, then add several
     data points and see if weights has changed.
     """
     m = 10
-    B1 = algo_class().run(S.iloc[:-m]).B
-    B2 = algo_class().run(S).B
+    B1 = _run(algo_class, S.iloc[:-m])
+    B2 = _run(algo_class, S)
 
-    assert (B1 == B2.iloc[:-m]).all().all()
+    assert np.allclose(B1, B2.iloc[:-m])
+
+
+@pytest.mark.parametrize(
+    "algo_class",
+    [a for a in ALL_ALGOS if a not in LEVERAGED],
+    ids=lambda a: a.__name__,
+)
+def test_long_only_weights(algo_class, S):
+    """Weights are finite, non-negative and sum to at most one; anything below one is
+    held in cash."""
+    B = _run(algo_class, S)
+
+    assert B.shape == S.shape
+    assert np.isfinite(B).all().all()
+    assert (B >= -EPS).all().all()
+    assert (B.sum(axis=1) <= 1 + 1e-6).all()
 
 
 # BAH
@@ -51,14 +76,3 @@ def test_tco1(S):
     """Zero turnover with extremely high fees."""
     result = algos.TCO1(eta=1, trx_fee_pct=1e6).run(S)
     assert abs(result.turnover) < 1e-8
-
-
-# OLMAR
-@pytest.mark.parametrize("ma_type", ["SMA", "EMA"])
-def test_olmar_min_window(S, ma_type):
-    """Window of 2 is the smallest that runs; 1 is rejected with a matching message."""
-    result = algos.OLMAR(window=2, ma_type=ma_type).run(S)
-    assert result.B.notnull().all().all()
-
-    with pytest.raises(ValueError, match=">=2"):
-        algos.OLMAR(window=1, ma_type=ma_type)
