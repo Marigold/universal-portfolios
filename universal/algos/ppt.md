@@ -4,7 +4,7 @@ PPT predicts that each asset's next price will be its highest price over a short
 
 Reference: Z.-R. Lai, D.-Q. Dai, C.-X. Ren, K.-K. Huang, [A Peak Price Tracking-Based Learning System for Portfolio Selection](https://ieeexplore.ieee.org/document/7942104), IEEE Transactions on Neural Networks and Learning Systems 29(7), 2018. Authors' code: [laizhr/PPT](https://github.com/laizhr/PPT).
 
-**The paper's text was not checked.** It is paywalled and we found no open copy. Everything below is written from the authors' reference MATLAB code (`PPT_run.m`, `PPT.m`, `simplex_projection_selfnorm2.m`), which this implementation reproduces to about 1e-13. Equation and theorem numbers are left out for that reason, and the paper's own derivation, claims and recommended parameters are not represented here.
+**The paper's text was not checked.** It is paywalled and we found no open copy. Everything below is written from the authors' reference MATLAB code (`PPT_run.m`, `PPT.m`, `simplex_projection_selfnorm2.m`), which this implementation reproduces to about 1e-12 when both get the same price relatives. Equation and theorem numbers are left out for that reason, and the paper's own derivation, claims and recommended parameters are not represented here.
 
 ## Setup
 
@@ -27,10 +27,10 @@ The prediction is centered, so that the step stays on the hyperplane $`\sum_i b_
 ```math
 c_t = \left(I - \tfrac{1}{m} \mathbf{1}\mathbf{1}^\top\right) \hat{x}_{t+1}, \qquad
 \tilde{b} = \begin{cases} b_t + \epsilon \, \dfrac{c_t}{\lVert c_t \rVert} & c_t \ne 0, \\ b_t & c_t = 0, \end{cases} \qquad
-b_{t+1} = \operatorname{proj}_{\Delta_m}(\tilde{b}),
+b_{t+1} = \mathrm{proj}_{\Delta_m}(\tilde{b}),
 ```
 
-where $`\operatorname{proj}_{\Delta_m}`$ is the Euclidean projection onto the simplex. $`c_t`$ is the gradient of the predicted return $`b \cdot \hat{x}_{t+1}`$ projected onto that hyperplane, so this is a normalized gradient step with a fixed length $`\epsilon`$. That reading is ours, from the code.
+where $`\mathrm{proj}_{\Delta_m}`$ is the Euclidean projection onto the simplex. $`c_t`$ is the gradient of the predicted return $`b \cdot \hat{x}_{t+1}`$ projected onto that hyperplane, so this is a normalized gradient step with a fixed length $`\epsilon`$. That reading is ours, from the code.
 
 Structurally PPT is [OLMAR](olmar.py) with a different predictor (window peak instead of window mean) and a fixed step length instead of OLMAR's passive-aggressive one, which only moves when the predicted return is below a threshold. [RPRT](rprt.py) is from the same first author and reweights a similar prediction.
 
@@ -81,7 +81,7 @@ PPT turns over about 1.1 of its wealth per day (sum of absolute weight changes),
 | $`\epsilon`$ | `self.eps` |
 | $`\hat{x}_{t+1}`$ | `predict(history.iloc[-window:])` once `len(history) > window` ($`t \ge w`$), else `history.iloc[-1] / history.iloc[-2]` |
 | $`c_t`$ | `x_cent` in `update` |
-| $`\operatorname{proj}_{\Delta_m}`$ | `tools.simplex_proj` |
+| $`\mathrm{proj}_{\Delta_m}`$ | `tools.simplex_proj` |
 
 `step` is called after period $`t`$, when `history` ends with $`p_t`$, and returns $`b_{t+1}`$, which the framework holds during period $`t+1`$. The first call is after period 1 (`min_history=1`), because the first period has no price relative; until then the weights are uniform. PPT keeps no state between steps: everything it needs is in `history` and `last_b`.
 
@@ -91,6 +91,7 @@ PPT turns over about 1.1 of its wealth per day (sum of absolute weight changes),
 
 - **Transaction costs.** See above: the strategy is almost all in on one asset that changes most days.
 - **No diversification.** With the default step, the projection ends on a vertex or an edge of the simplex, so wealth rides on one asset at a time.
-- **Ties.** If every asset predicts the same relative (all at their window high, or constant prices), $`c_t = 0`$ and the portfolio is held unchanged.
-- **Reference-code safeguard not reproduced.** `simplex_projection_selfnorm2.m` divides its input by 10 until no entry exceeds $`10^6`$ in absolute value before projecting, which changes the result. It only triggers for $`\epsilon`$ around $`10^6`$ or larger, and this implementation projects without rescaling.
-- **First row of the bundled datasets.** The bundled CSVs hold prices whose first row looks like the first day's price relatives in the OLPS `.mat` files the authors' code reads. The framework normalizes that row to 1, so day 1's return is dropped and the warm-up starts a day later. This applies to every algorithm in the package and moves PPT's final wealth by up to about 5% compared with feeding the `.mat` data to the authors' code.
+- **Ties.** If every asset predicts exactly 1 (all at their window high, or constant prices), $`c_t = 0`$ and the portfolio is held unchanged.
+- **Reference-code safeguard not reproduced.** `simplex_projection_selfnorm2.m` divides its input by 10 until no entry exceeds $`10^6`$ in absolute value before projecting, which changes the result. It only triggers for $`\epsilon`$ around $`10^6`$ or larger, and this implementation projects without rescaling. At $`\epsilon = 10^7`$ that changed weights by at most 2e-8, on three days of TSE where two assets were nearly tied.
+- **Predictions equal only up to rounding.** The step direction is $`c_t / \lVert c_t \rVert`$, so when all predictions are equal in exact arithmetic but not in floating point, $`c_t`$ is about $`10^{-16}`$ instead of 0 and PPT still takes a full step, in a direction set by rounding. Assets with proportional prices do this, since the price normalization already makes their relatives differ in the last digits. Predictions that are exactly 1, at a common window high or with constant prices, give $`c_t = 0`$ and no step. The reference code centers with a matrix product, which in double precision leaves such residuals even more often.
+- **First row of the bundled datasets.** The bundled CSVs hold prices whose first row looks like the first day's price relatives in the OLPS `.mat` files the authors' code reads. The framework normalizes that row to 1, so day 1's return is dropped. Fed the CSVs the way the `.mat` files store them, the authors' code holds the same weights as `PPT().run(S)` on every day except the second, whose portfolio it derives from day 1, and final wealth differs by up to 4.5%. This applies to every algorithm in the package.
