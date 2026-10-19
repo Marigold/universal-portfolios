@@ -61,14 +61,23 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 88
+# Explicit, because ruff 0.16 widened its default rule set; these are ruff's
+# previous defaults plus our additions (same as etl).
+lint.select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    # isort
+    "I",
+    # pyupgrade - modern Python syntax
+    "UP",
+]
 lint.ignore = [
     "F403",
     "F405",
     "E731",
     "E741",
-    "DTZ",      # naive dates are the convention in these trading repos; adding tzinfo changes behaviour
-    "LOG015",   # this codebase has no per-module loggers anywhere; adopting one is a design decision, not lint fallout
-    "TRY002",   # raising vanilla Exception is the existing convention; a custom hierarchy is a design decision
 ]
 
 [tool.hatch.build.targets.wheel]

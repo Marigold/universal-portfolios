@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 2
+          persist-credentials: false
 
       # A push touching pyproject.toml isn't necessarily a release — only
       # publish when the version line actually changed.
@@ -62,10 +63,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
+      # No cache in the job that publishes: a poisoned cache from a PR run
+      # could otherwise end up in the released package.
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.0"
+          enable-cache: false
 
       - name: Build
         run: |

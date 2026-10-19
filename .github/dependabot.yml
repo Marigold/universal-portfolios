@@ -1,0 +1,24 @@
+# Dependabot version updates, scoped to GitHub Actions only (same as etl).
+#
+# Actions are pinned to commit SHAs, which freezes each one until somebody
+# bumps it by hand, and actions almost never get security advisories, so
+# nothing else would ever move these pins. A long-frozen pin eventually breaks:
+# in etl, an old pypa/gh-action-pypi-publish couldn't parse the metadata newer
+# hatchling emits, breaking the PyPI release.
+#
+# Python dependencies are left out: Dependabot security updates cover them
+# without any config, and uv's exclude-newer already rolls them forward.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Don't adopt a release the moment it appears: a compromised action release
+    # is usually yanked within days.
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
