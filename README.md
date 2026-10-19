@@ -35,6 +35,7 @@ Several state-of-the-art algorithms are implemented, based on my understanding o
 ||| __[CWMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/cwmr.py)__ || __[MPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/mpt.py)__ |
 ||| __[WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)__ |||
 ||| __[RPRT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rprt.py)__ |||
+||| __[PPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ppt.py)__ |||
 
 </div>
 

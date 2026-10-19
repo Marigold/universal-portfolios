@@ -16,6 +16,7 @@ from .mpt import MPT
 from .olmar import OLMAR
 from .ons import ONS
 from .pamr import PAMR
+from .ppt import PPT
 from .rmr import RMR
 from .rprt import RPRT
 from .tco import TCO1, TCO2
@@ -34,6 +35,7 @@ __all__ = [
     "OLMAR",
     "ONS",
     "PAMR",
+    "PPT",
     "RMR",
     "RPRT",
     "TCO1",

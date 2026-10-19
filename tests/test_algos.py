@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from universal import algos
@@ -94,3 +95,19 @@ def test_tco1(S):
     """Zero turnover with extremely high fees."""
     result = algos.TCO1(eta=1, trx_fee_pct=1e6).run(S)
     assert abs(result.turnover) < 1e-8
+
+
+def test_ppt():
+    """Until the window fills, PPT follows the last price relative (into the riser A);
+    afterwards it moves into the asset furthest below its window peak (the faller B)."""
+    S = pd.DataFrame(
+        {
+            "A": [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+            "B": [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4],
+        }
+    )
+    B = algos.PPT(window=3).run(S).B
+
+    assert np.allclose(B.iloc[0:2], 0.5)
+    assert np.allclose(B.iloc[2:4], [1.0, 0.0])
+    assert np.allclose(B.iloc[4:], [0.0, 1.0])
