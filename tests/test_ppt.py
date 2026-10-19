@@ -10,7 +10,7 @@ def test_hand_computed_steps():
     of eps = 0.1 * sqrt(2) moves 0.1 of weight to the asset with the higher predicted
     price relative, or nothing on a tie.
 
-    window = 2, so steps 1-2 (two prices seen) use the last price relative and later
+    window = 2, so step 1 (two prices seen) uses the last price relative and later
     steps use max(last two prices) / last price:
     - step 1: relatives (1, 2), B rises -> B[2] = (0.4, 0.6)
     - step 2: peaks (1, 4/4), tie -> B[3] = B[2]
@@ -82,16 +82,15 @@ def test_small_eps_stays_near_uniform(S):
 
 
 @pytest.mark.filterwarnings("error::RuntimeWarning")
-def test_single_asset():
-    S = tools.random_portfolio(n=50, k=1)
-    assert (algos.PPT().run(S).B == 1).all().all()
-
-
-@pytest.mark.filterwarnings("error::RuntimeWarning")
-def test_constant_prices():
-    """Constant prices predict no change for any asset, so there is no step."""
-    S = pd.DataFrame(np.ones((20, 3)))
-    assert np.allclose(algos.PPT().run(S).B, 1 / 3)
+@pytest.mark.parametrize(
+    "S",
+    [tools.random_portfolio(n=50, k=1), pd.DataFrame(np.ones((20, 3)))],
+    ids=["single_asset", "constant_prices"],
+)
+def test_no_step_possible(S):
+    """A single asset, or constant prices that predict no change for any asset, leave
+    nothing to step towards, so the weights stay uniform without warnings."""
+    assert np.allclose(algos.PPT().run(S).B, 1 / S.shape[1])
 
 
 def test_late_listed_asset():

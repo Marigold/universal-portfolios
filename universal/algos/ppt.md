@@ -47,17 +47,17 @@ Structurally PPT is [OLMAR](olmar.py) with a different predictor (window peak in
 - $`\epsilon \to 0`$: the portfolio never moves from uniform weights, again uniform CRP.
 - $`\epsilon \to \infty`$: the projection lands on the vertex of the asset with the largest $`\hat{x}_{t+1,i}`$, all in on the asset furthest below its window peak (split between tied assets).
 
-The default $`\epsilon = 100`$ is far larger than the simplex, whose diameter is $`\sqrt{2}`$, so in practice PPT is close to the $`\epsilon \to \infty`$ limit. On the bundled NYSE (O), DJIA, TSE and SP500 data it holds a single asset on 94-96% of days, never more than three, and switches its main holding on 55-58% of days.
+The default $`\epsilon = 100`$ is far larger than the simplex, whose diameter is $`\sqrt{2}`$, so in practice PPT is close to the $`\epsilon \to \infty`$ limit. On the bundled NYSE (O), DJIA, TSE and SP500 data it holds a single asset on 93-96% of days, never more than three, and switches its main holding on 55-58% of days.
 
 ## Guarantees
 
-None are stated here. We could not read the paper, so we don't know what it proves, if anything, and the reference code makes no claims. The update has no regret or universal-consistency guarantee that we know of; like OLMAR and RPRT it bets on a price prediction, and its worth is empirical.
+None that we know of (the paper wasn't checked, and the reference code makes no claims). Like OLMAR and RPRT it bets on a price prediction, and its worth is empirical.
 
 ## What this means for wealth
 
 PPT is a bet that assets which have just fallen below their recent peak will recover to it, placed almost all in on one asset at a time. On these datasets that bet paid off hugely before costs, as it does for OLMAR and RPRT, and the gains disappear once trading costs are charged.
 
-Final wealth from `algo().run(tools.dataset(name))` with default parameters, without fees and with `result.fee = 0.001` (0.1% per unit traded):
+Final wealth from `algo().run(tools.dataset(name))` with default parameters, without fees and with `result.fee = 0.001` (0.1% per unit traded). BestSoFar draws random numbers, so its column is one draw and varies by a few percent between runs:
 
 | dataset | days × assets | PPT | OLMAR | RPRT | CRP | BAH | BestSoFar |
 |---|---|---|---|---|---|---|---|
@@ -91,7 +91,6 @@ PPT turns over about 1.1 of its wealth per day (sum of absolute weight changes),
 
 - **Transaction costs.** See above: the strategy is almost all in on one asset that changes most days.
 - **No diversification.** With the default step, the projection ends on a vertex or an edge of the simplex, so wealth rides on one asset at a time.
-- **Ties.** If every asset predicts exactly 1 (all at their window high, or constant prices), $`c_t = 0`$ and the portfolio is held unchanged.
-- **Reference-code safeguard not reproduced.** `simplex_projection_selfnorm2.m` divides its input by 10 until no entry exceeds $`10^6`$ in absolute value before projecting, which changes the result. It only triggers for $`\epsilon`$ around $`10^6`$ or larger, and this implementation projects without rescaling. At $`\epsilon = 10^7`$ that changed weights by at most 2e-8, on three days of TSE where two assets were nearly tied.
-- **Predictions equal only up to rounding.** The step direction is $`c_t / \lVert c_t \rVert`$, so when all predictions are equal in exact arithmetic but not in floating point, $`c_t`$ is about $`10^{-16}`$ instead of 0 and PPT still takes a full step, in a direction set by rounding. Assets with proportional prices do this, since the price normalization already makes their relatives differ in the last digits. Predictions that are exactly 1, at a common window high or with constant prices, give $`c_t = 0`$ and no step. The reference code centers with a matrix product, which in double precision leaves such residuals even more often.
-- **First row of the bundled datasets.** The bundled CSVs hold prices whose first row looks like the first day's price relatives in the OLPS `.mat` files the authors' code reads. The framework normalizes that row to 1, so day 1's return is dropped. Fed the CSVs the way the `.mat` files store them, the authors' code holds the same weights as `PPT().run(S)` on every day except the second, whose portfolio it derives from day 1, and final wealth differs by up to 4.5%. This applies to every algorithm in the package.
+- **Ties.** If every asset predicts exactly 1 (all at their window high, or constant prices), $`c_t = 0`$ and the portfolio is held unchanged. Predictions that are equal in exact arithmetic but not in floating point (e.g. assets with proportional prices) leave $`c_t \approx 10^{-16}`$, and PPT still takes a full step in a direction set by rounding; the reference code does the same.
+- **Zero prices.** A price of exactly 0 makes the prediction infinite and every later weight NaN, as in OLMAR.
+- **Reference-code safeguard not reproduced.** `simplex_projection_selfnorm2.m` divides its input by 10 until no entry exceeds $`10^6`$ in absolute value before projecting. It can only trigger for $`\epsilon`$ around $`10^6`$ or larger; this implementation projects without rescaling.

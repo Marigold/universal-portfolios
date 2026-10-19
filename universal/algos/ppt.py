@@ -10,15 +10,10 @@ class PPT(Algo):
     portfolio along the centered predicted price relatives, then projects onto the
     simplex. Weight moves to the assets trading furthest below their recent peak.
 
-    With the default eps = 100 the step dwarfs the simplex, so PPT holds a single
-    asset on about 95% of days, the one furthest below its window peak, and switches
-    it on more than half of the days. Like OLMAR and RPRT, without fees it beats
-    uniform CRP on every bundled dataset we tried (4x on DJIA, 1e16x on NYSE), but
-    the edge is gone at fees between 0.14% (SP500) and 0.6% (NYSE) per unit traded.
-
-    The update is implemented from the authors' reference MATLAB code; the paper's
-    text was not checked. The math, how it maps to this code and benchmarks are in
-    ppt.md next to this file.
+    With the default eps = 100 it is almost always all in on one asset and trades most
+    days, so like OLMAR and RPRT it beats uniform CRP on the bundled datasets only
+    without fees. Implemented from the authors' reference MATLAB code; the paper's text
+    was not checked. Math, mapping to code and benchmarks are in ppt.md.
 
     Reference:
         Zhao-Rong Lai, Dao-Qing Dai, Chuan-Xian Ren and Ke-Kun Huang.
