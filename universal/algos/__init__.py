@@ -1,3 +1,4 @@
+from .adahedge import AdaHedge
 from .anticor import Anticor
 from .bah import BAH
 from .bcrp import BCRP
@@ -39,6 +40,7 @@ __all__ = [
     "TCO2",
     "UP",
     "WMAMR",
+    "AdaHedge",
     "Anticor",
     "BestMarkowitz",
     "BestSoFar",
