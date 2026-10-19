@@ -36,8 +36,11 @@ class Kelly(Algo):
         :param r: Risk-free rate.
         :param long_only: Restrict to positive portfolio weights.
         :param fraction: Use fraction of Kelly weights. 1. is full Kelly, 0.5 is half Kelly.
-        :param max_leverage: Max leverage to use.
+        :param max_leverage: Max leverage to use, only with long_only=True. Long-short
+            Kelly is unconstrained.
         :param reg: Regularization parameter for covariance matrix (adds identity matrix).
+            Full Kelly leverage explodes when assets are nearly collinear or there are
+            fewer observations than assets; a small reg keeps it bounded.
         :param mu_estimate: Mean is estimated to be proportional to historical variance
         :param gamma: Penalize changing weights.
         """
@@ -88,14 +91,20 @@ class Kelly(Algo):
             else:
                 mu += 2.0 * gamma / q
 
-        # pure approach - problems with singular matrix
         if not self.long_only:
-            sigma = np.matrix(sigma)
-            mu = np.matrix(mu).T
+            mu = pd.Series(mu, index=x.index)
 
-            sigma_inv = np.linalg.inv(sigma)
-            b = (1 + self.r) * sigma_inv * (mu - self.r)
-            b = np.ravel(b)
+            # assets without history or volatility get zero weight, as in
+            # tools.opt_markowitz
+            keep = mu.notnull().to_numpy() & (np.diag(sigma) > 1e-8)
+            sigma_k = sigma.to_numpy()[np.ix_(keep, keep)] + self.reg * np.eye(
+                keep.sum()
+            )
+
+            # pinv instead of inv, so that exact duplicates split their weight
+            # instead of raising on a singular matrix
+            b = np.zeros(m)
+            b[keep] = (1 + self.r) * np.linalg.pinv(sigma_k) @ (mu[keep] - self.r)
         else:
             b = tools.opt_markowitz(
                 mu,
