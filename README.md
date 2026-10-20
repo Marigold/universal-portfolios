@@ -8,17 +8,28 @@
 ![Contributors](https://img.shields.io/badge/contributors-9-orange.svg?style=flat-square)
 ![Repo size](https://img.shields.io/github/repo-size/Marigold/universal-portfolios?style=flat-square)
 
-The purpose of this Python package is to bring together different Online Portfolio Selection (OLPS) algorithms and provide unified tools for their analysis.
+This Python package brings together Online Portfolio Selection (OLPS) algorithms from the literature, implemented faithfully to their papers and run under one interface, so that they can be compared and their claims checked.
 
-In short, the purpose of OLPS is to _choose portfolio weights in every period to maximize final wealth_. Examples of such portfolios include the [Markowitz portfolio](http://en.wikipedia.org/wiki/Modern_portfolio_theory) or the [Universal portfolio](http://en.wikipedia.org/wiki/Universal_portfolio_algorithm). There is currently active research in the area of online portfolios, and even though the results are mostly theoretical, algorithms for practical use are starting to appear.
+In short, OLPS algorithms _choose portfolio weights in every period to maximize final wealth_. Examples include the [Markowitz portfolio](http://en.wikipedia.org/wiki/Modern_portfolio_theory) and the [Universal portfolio](http://en.wikipedia.org/wiki/Universal_portfolio_algorithm). Many papers in this field report spectacular backtests. The point of this package is to make it easy to see how much of that survives a closer look. Contributions and corrections are more than welcome.
 
-Several state-of-the-art algorithms are implemented, based on my understanding of the available literature. Contributions or corrections are more than welcome.
+## ⚠️ Read this before trusting any backtest
+
+The results you get from these algorithms on the bundled datasets say very little about how they would do with real money.
+
+- **The datasets only contain survivors.** NYSE(O), NYSE(N), DJIA, SP500 and TSE are the standard stock benchmarks of the OLPS literature (MSCI holds country indices). They include only stocks that traded every day of the period: none went bankrupt or was delisted. Some are also picked in hindsight. SP500 is the 25 stocks with the largest market cap in April 2003, after the period ends, and NYSE(N) keeps 23 of NYSE(O)'s 36 stocks. The [Anticor paper](https://jair.org/index.php/jair/article/download/10380/24854/19216) (p. 592), [CWMR](http://proceedings.mlr.press/v15/li11b/li11b.pdf) (§5.5) and [OLMAR](https://arxiv.org/abs/1206.4626) (§5.5) acknowledge this. Many later papers, such as [PPT](https://ieeexplore.ieee.org/document/7942104) and [SSPO](https://jmlr.org/papers/v19/17-558.html), don't mention it.
+- **Survivor-only data hides the main risk of "follow the loser" algorithms.** OLMAR, PAMR, PPT, SSPO and the like move money into stocks that just fell. Survivor-only data still has stocks that fall a long way, but none that fall all the way and get delisted, so these algorithms never meet one. [`examples/survivorship_bias.ipynb`](https://github.com/Marigold/universal-portfolios/blob/master/examples/survivorship_bias.ipynb) simulates this on random walks. Survivorship alone doesn't make these algorithms beat uniform CRP. But once stocks can go bankrupt, they keep buying into the collapsing ones. Even when only 1–7% of the stocks go bankrupt, OLMAR, PAMR and PPT end with 46–76% of CRP's wealth, against 84–94% on survivors, while buy-and-hold loses less than CRP.
+- **Transaction costs.** Most headline numbers assume rebalancing for free at the daily close. The mean-reversion algorithms trade most of their wealth every day. [PPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ppt.md), for example, falls behind uniform CRP at fees of 0.14–0.6% per unit traded on the bundled datasets, and [SSPO](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/sspo.md) at 0.5% round trip ends below CRP on SP500. Set `result.fee` before believing any number.
+- **Parameters are often tuned on the same data.** PPT's step size and four of SSPO's five parameters were chosen by final wealth on the same five datasets the papers then report, with no out-of-sample period.
+- **Independent re-tests are discouraging.** On recent S&P 500 stocks, [Moon et al. (2019)](https://arxiv.org/abs/1909.04327) find that OLMAR and PAMR lose almost everything at 0.25% costs.
+
+Use this package to study the algorithms and their failure modes, not to pick a trading strategy.
 
 ## Outline of this package
 
-* `examples` contains two Python Notebooks:
+* Python notebooks:
    - [Online Portfolios](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/On-line%20portfolios.ipynb): explains the basic use of the library. Script sequence, various options, method arguments, and a strategy template to get you started.
    - [Modern Portfolio Theory](http://nbviewer.ipython.org/github/Marigold/universal-portfolios/blob/master/modern-portfolio-theory.ipynb): goes deeper into the OLPS principle and the tools developed in this library to approach it.
+   - [Survivorship bias](https://github.com/Marigold/universal-portfolios/blob/master/examples/survivorship_bias.ipynb): what survivor-only datasets hide about mean-reversion algorithms, on simulated data.
 
 * `universal.data` contains various datasets to help you in your journey.
 
