@@ -106,7 +106,7 @@ So in practice Soft-Bayes is uniform CRP with a guarantee. On the bundled datase
 | tse | 1259, 88 | 1.596 | 1.570 | 0.314 | 1.569 | 1.570 | 1.570 ($`\eta`$ = 0.0063) | 6.599 |
 | sp500 | 1276, 25 | 1.333 | 1.639 | 1.755 | 1.624 | 1.637 | 1.636 ($`\eta`$ = 0.0099) | 4.050 |
 
-Final wealth without fees. The other algorithms use their default parameters (EG $`\eta = 0.05`$). "Theory $`\eta`$" is Theorem 3's with $`m = N`$ and the dataset's own $`T`$. Where it matters is adversarial data. With a leader that flips every period by a factor of 4, buy and hold's regret against $`(\tfrac12, \tfrac12)`$ grows by $`\ln 1.25`$ per period, and EG with $`\eta = 2`$ does worse still, while Soft-Bayes stays within a few nats (see the tests).
+Final wealth without fees. The other algorithms use their default parameters (EG $`\eta = 0.05`$). "Theory $`\eta`$" is Theorem 3's with $`m = N`$ and the dataset's own $`T`$. Where it matters is adversarial data. With a leader that flips every period by a factor of 4, buy and hold's regret against $`(\tfrac12, \tfrac12)`$ grows by $`\ln 1.25`$ per period, while Soft-Bayes' regret stays below Theorem 3's $`O(\sqrt{T})`$ bound (see the tests).
 
 ## How the code maps to this
 
@@ -118,7 +118,7 @@ Final wealth without fees. The other algorithms use their default parameters (EG
 | $`\eta`$ | `self.eta` |
 | $`\eta_t`$, anytime | `np.sqrt(np.log(n_assets) / (2 * n_assets * self.t))` when `eta=None` |
 | $`\eta_{t+1}/\eta_t`$ | `beta = np.sqrt(self.t / (self.t + 1))` |
-| $`w_1`$ | `self.w1`, from `init_weights` (uniform) |
+| $`w_1`$ | `self.w1`, from `init_weights` (uniform unless a subclass overrides it) |
 | $`t`$ | `self.t`, the number of `step` calls |
 
 `step(x)` is called after period $`t`$ with that period's relatives $`x_t`$ and the weights $`w_t`$ held during it, and returns $`w_{t+1}`$, which the framework holds during period $`t + 1`$. The framework's first row of relatives is all ones. With a fixed $`\eta`$ that step leaves the weights unchanged. In the anytime variant it counts as round 1 of the schedule, which costs nothing, since its regret is zero.
@@ -127,5 +127,5 @@ Final wealth without fees. The other algorithms use their default parameters (EG
 
 - An asset without a price yet (listed late) is treated as having a constant price (`REPLACE_MISSING = True`): its share of the weights sits in cash until it lists, and the guarantees apply to that sequence. Delisted assets are treated the same way. The paper assumes every expert predicts in every period.
 - Only Theorem 10's schedule is implemented. The variant that tracks the set of leaders online (Section 6.1) and the self-confident learning rates of Theorems 5 and 6 are not.
-- The prior is always uniform.
+- The prior is uniform unless a subclass overrides `init_weights`. Theorem 1 holds for any prior, with $`\ln(1 / w_1^i)`$ in place of $`\ln N`$; the other bounds above assume the uniform prior.
 - The theory-optimal and anytime learning rates are so small on real data that the algorithm is hard to tell from uniform CRP. Larger values of $`\eta`$ are allowed, but Theorem 3's bound then grows linearly in $`T`$.

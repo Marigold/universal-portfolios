@@ -15,17 +15,15 @@ class SoftBayes(Algo):
     instead of exponential, so one period can add at most eta to an asset's weight and
     remove at most a fraction eta of it. That makes its regret against the best CRP
     independent of how extreme the price relatives get, which is what breaks EG. It
-    costs O(m) per step.
+    costs O(N) per step for N assets.
 
     The default, eta=None, is the paper's anytime variant: a learning rate that
-    decreases as sqrt(ln N / (2 N t)) for N assets, with a small pull back towards
-    uniform weights, so it needs neither tuning nor the length of the history.
+    decreases as sqrt(ln N / (2 N t)), with a small pull back towards the initial
+    weights, so it needs neither tuning nor the length of the history.
 
     What it is good for: a cheap, robust baseline that is guaranteed to stay close to
     the best CRP. With the learning rates the theory recommends it hardly moves away
-    from uniform weights, and on the bundled datasets (nyse_o, djia, tse, sp500) it
-    finishes within about 0.2% of uniform CRP's wealth. It does not compete with the
-    mean-reversion algorithms.
+    from uniform weights, so on real data it is hard to tell from uniform CRP.
 
     The math, its guarantees and how it maps to this code are in soft_bayes.md next to
     this file.
@@ -69,19 +67,15 @@ class SoftBayes(Algo):
 
         if self.eta is None:
             eta = np.sqrt(np.log(n_assets) / (2 * n_assets * self.t))
-        else:
-            eta = self.eta
-
-        # eq. (7)
-        b = b * (1 - eta + eta * x / (b @ x))
-
-        if self.eta is None:
             # online correction of eq. (14); eta_{t+1} / eta_t = sqrt(t / (t + 1)),
             # written out so that it is defined for a single asset (eta_t = 0)
             beta = np.sqrt(self.t / (self.t + 1))
-            b = beta * b + (1 - beta) * self.w1
+        else:
+            eta, beta = self.eta, 1.0
 
-        return b
+        # eq. (7), then the correction (a no-op for a fixed eta)
+        b = b * (1 - eta + eta * x / (b @ x))
+        return beta * b + (1 - beta) * self.w1
 
 
 if __name__ == "__main__":

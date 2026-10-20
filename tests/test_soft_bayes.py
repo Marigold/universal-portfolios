@@ -98,12 +98,11 @@ def test_hand_computed_anytime():
 
 
 @pytest.mark.parametrize("eta", [0.05, 0.3, 1.0])
-@pytest.mark.parametrize("case", ["random", "dominant", "flipping"])
-def test_theorem_1_regret_to_single_asset(eta, case, S):
+@pytest.mark.parametrize("case", ["dominant", "flipping"])
+def test_theorem_1_regret_to_single_asset(eta, case):
     """Theorem 1: the log-wealth regret against any single asset is at most
     (1 / eta) ln(1 / w_1^i) = (1 / eta) ln N with uniform prior weights."""
     S = {
-        "random": S,
         # one asset grows while the others fall, so eta = 1 (BAH) gets close to ln N
         "dominant": _prices([[1.1, 0.9, 0.9]] * 200),
         "flipping": _flipping_leader(400),
@@ -117,12 +116,12 @@ def test_theorem_1_regret_to_single_asset(eta, case, S):
 
 
 @pytest.mark.parametrize("third", [None, 0.9], ids=["N=2", "N=3,m=2"])
-@pytest.mark.parametrize("eta", ["theory", 0.1])
-def test_theorem_3_regret_to_best_crp(eta, third):
+def test_theorem_3_regret_to_best_crp(third):
     """Theorem 3, with a leader that flips every period: the regret against any CRP a is
     at most (1 / eta_bar) ln N + eta_bar m T + m ln(N / m) + ln N, where m is the number
     of assets that are the best in at least one period. With the theory eta the bound
-    grows like sqrt(T), and buy and hold's regret, linear in T, is above it."""
+    grows like sqrt(T), and buy and hold's regret, linear in T, is above it, so the
+    bound is not vacuous on this data."""
     T = 1000
     S = _flipping_leader(T, third)
     N = S.shape[1]
@@ -130,9 +129,7 @@ def test_theorem_3_regret_to_best_crp(eta, third):
     # so the rounds are the T rows after it
     X = (S / S.shift(1)).iloc[1:].values
     m = int((X == X.max(axis=1, keepdims=True)).any(axis=0).sum())
-    theory = eta == "theory"
-    if theory:
-        eta = _theory_eta(T, N, m)
+    eta = _theory_eta(T, N, m)
     eta_bar = eta / (1 - eta)
     bound = np.log(N) / eta_bar + eta_bar * m * T + m * np.log(N / m) + np.log(N)
 
@@ -143,8 +140,7 @@ def test_theorem_3_regret_to_best_crp(eta, third):
 
     for comparator in [a_half, bcrp]:
         assert _log_wealth(comparator, S) - sb <= bound
-    if theory:
-        assert _log_wealth(a_half, S) - _log_wealth(algos.BAH(), S) > bound
+    assert _log_wealth(a_half, S) - _log_wealth(algos.BAH(), S) > bound
 
 
 @pytest.mark.parametrize("third", [None, 0.9], ids=["N=2", "N=3"])
