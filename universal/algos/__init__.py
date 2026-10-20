@@ -20,6 +20,7 @@ from .ppt import PPT
 from .rmr import RMR
 from .rprt import RPRT
 from .soft_bayes import SoftBayes
+from .sspo import SSPO
 from .tco import TCO1, TCO2
 from .up import UP
 from .wmamr import WMAMR
@@ -39,6 +40,7 @@ __all__ = [
     "PPT",
     "RMR",
     "RPRT",
+    "SSPO",
     "TCO1",
     "TCO2",
     "UP",

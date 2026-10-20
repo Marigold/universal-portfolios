@@ -36,6 +36,7 @@ Several state-of-the-art algorithms are implemented, based on my understanding o
 ||| __[WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)__ |||
 ||| __[RPRT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rprt.py)__ |||
 ||| __[PPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ppt.py)__ |||
+||| __[SSPO](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/sspo.py)__ |||
 
 </div>
 
