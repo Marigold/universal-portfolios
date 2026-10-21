@@ -32,7 +32,9 @@ Repository = "https://github.com/Marigold/universal-portfolios"
 exclude-newer = "3 days"
 # ruff/ty are pinned exactly below, so the rolling cutoff only needs to
 # allow picking whatever their currently-pinned release is.
-exclude-newer-package = { ruff = "2030-01-01T00:00:00Z", ty = "2030-01-01T00:00:00Z" }
+# certifi is the CA trust store; its releases distrust compromised CAs, so a cooldown would
+# only keep forged certificates trusted for longer.
+exclude-newer-package = { ruff = "2030-01-01T00:00:00Z", ty = "2030-01-01T00:00:00Z", certifi = false }
 
 [dependency-groups]
 # Just what `make test` needs. CI installs only this, skipping the jupyter stack:
