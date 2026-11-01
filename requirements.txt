@@ -132,7 +132,7 @@ scipy==1.18.0 ; python_full_version >= '3.12'
     #   universal-portfolios
 seaborn==0.13.2
     # via universal-portfolios
-setuptools==83.0.0
+setuptools==84.1.0
     # via pandas-datareader
 six==1.17.0
     # via python-dateutil
