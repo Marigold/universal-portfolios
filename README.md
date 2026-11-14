@@ -44,7 +44,7 @@ Use this package to study the algorithms and their failure modes, not to pick a 
 | __[BCRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/bcrp.py)__ | __[Soft-Bayes](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/soft_bayes.py)__ | __[OLMAR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/olmar.py)__ || __[Best so far](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/best_so_far.py)__ |
 | __[DCRP](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/dynamic_crp.py)__ | __[AdaHedge](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/adahedge.py)__ | __[RMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rmr.py)__ || __[ONS](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ons.py)__ |
 ||| __[CWMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/cwmr.py)__ || __[MPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/mpt.py)__ |
-||| __[WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)__ |||
+||| __[WMAMR](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/wmamr.py)__ || __[PBTS](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/pbts.py)__ |
 ||| __[RPRT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/rprt.py)__ |||
 ||| __[PPT](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/ppt.py)__ |||
 ||| __[SSPO](https://github.com/Marigold/universal-portfolios/blob/master/universal/algos/sspo.py)__ |||
